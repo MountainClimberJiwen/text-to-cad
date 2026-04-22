@@ -34,6 +34,13 @@ An open source harness for generating 3D models with your favorite coding agent
 - **Reproduce** - Edit source files first, then regenerate explicit targets.
 - **Local** - Run the harness and viewer locally with no backend to host.
 
+## 🧰 Bundled Skills
+
+This harness vendors file-targeted skills for CAD and robot-description work. Use the bundled copies here for local `models/` projects, or use the dedicated repositories when installing the skills outside this harness.
+
+- **CAD Skill** - STEP, STL, DXF, GLB/topology, snapshots, and `@cad[...]` geometry references. [Bundled docs](skills/cad/README.md) · [Standalone repo](https://github.com/earthtojake/cad-skill)
+- **URDF Skill** - Generated URDF XML, robot links, joints, limits, validation, and mesh references. [Bundled docs](skills/urdf/README.md) · [Standalone repo](https://github.com/earthtojake/urdf-skill)
+
 ## 🔁 Workflow
 
 1. **Describe** - Tell your agent about the part, assembly, fixture, robot, or mechanism you want.
