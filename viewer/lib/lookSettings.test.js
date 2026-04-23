@@ -3,10 +3,20 @@ import test from "node:test";
 
 import {
   cloneLookPresetSettings,
+  DEFAULT_CAD_WORKSPACE_GLASS_TONE,
+  DEFAULT_LOOK_PRESET_ID,
+  DEFAULT_LOOK_SETTINGS,
   getLookPresetIdForSettings,
   LOOK_PRESETS,
   normalizeLookSettings
 } from "./lookSettings.js";
+
+test("cinematic is the default look preset", () => {
+  assert.equal(DEFAULT_LOOK_PRESET_ID, "cinematic");
+  assert.equal(DEFAULT_CAD_WORKSPACE_GLASS_TONE, "dark");
+  assert.equal(getLookPresetIdForSettings(DEFAULT_LOOK_SETTINGS), "cinematic");
+  assert.equal(getLookPresetIdForSettings(cloneLookPresetSettings()), "cinematic");
+});
 
 test("look presets expose a default material color", () => {
   const blue = cloneLookPresetSettings("blue");

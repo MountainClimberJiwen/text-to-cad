@@ -1,5 +1,6 @@
 import { clonePerspectiveSnapshot, perspectiveSnapshotEqual } from "../perspective.js";
 import {
+  DEFAULT_CAD_WORKSPACE_GLASS_TONE,
   cloneLookSettings,
   DEFAULT_LOOK_SETTINGS,
   normalizeLookSettings
@@ -587,13 +588,17 @@ export function writeLookSettings(lookSettings, options = {}) {
   );
 }
 
-export function normalizeCadWorkspaceGlassTone(value) {
-  return String(value || "").trim().toLowerCase() === "dark" ? "dark" : "light";
+export function normalizeCadWorkspaceGlassTone(value, fallback = DEFAULT_CAD_WORKSPACE_GLASS_TONE) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "dark" || normalized === "light") {
+    return normalized;
+  }
+  return fallback;
 }
 
 export function readCadWorkspaceGlassTone() {
   if (typeof window === "undefined") {
-    return "light";
+    return DEFAULT_CAD_WORKSPACE_GLASS_TONE;
   }
   return normalizeCadWorkspaceGlassTone(window.localStorage.getItem(CAD_WORKSPACE_GLASS_TONE_STORAGE_KEY));
 }

@@ -27,6 +27,7 @@ import {
 } from "../lib/themes";
 import {
   cloneLookSettings,
+  DEFAULT_CAD_WORKSPACE_GLASS_TONE,
   DEFAULT_LOOK_SETTINGS,
   normalizeLookSettings
 } from "../lib/lookSettings";
@@ -1357,6 +1358,7 @@ export default function CadWorkspace({
 
   const handleResetLookSettings = useCallback(() => {
     setLookSettings(cloneLookSettings(DEFAULT_LOOK_SETTINGS));
+    setCadWorkspaceGlassTone(DEFAULT_CAD_WORKSPACE_GLASS_TONE);
   }, []);
 
   const handleViewerAlertChange = useCallback((nextAlert) => {
