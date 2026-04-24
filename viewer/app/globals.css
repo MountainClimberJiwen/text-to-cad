@@ -117,6 +117,9 @@
   --ui-status-assembly-text: var(--ui-warning-text);
   --ui-status-part-bg: var(--ui-success-bg);
   --ui-status-part-text: var(--ui-success-text);
+  --ui-loading-overlay: color-mix(in srgb, var(--background) 38%, transparent);
+  --ui-loading-overlay-strong: color-mix(in srgb, var(--background) 76%, transparent);
+  --ui-loading-border: color-mix(in srgb, var(--ui-border) 72%, white 10%);
 }
 
 .dark {
@@ -162,6 +165,8 @@
   --ui-glass-surface: rgb(22 22 25 / 82%);
   --ui-glass-popover: rgb(24 24 27 / 86%);
   --ui-glass-control: rgb(13 13 16 / 64%);
+  --ui-loading-overlay: rgb(5 6 10 / 34%);
+  --ui-loading-overlay-strong: rgb(5 6 10 / 72%);
 }
 
 :root[data-glass-tone="light"],
@@ -235,6 +240,20 @@
 
   .cad-glass-control {
     background-color: var(--ui-glass-control) !important;
+  }
+
+  .cad-loading-overlay {
+    background:
+      radial-gradient(circle at 50% 14%, color-mix(in srgb, var(--ui-accent) 18%, transparent) 0%, transparent 38%),
+      linear-gradient(180deg, color-mix(in srgb, var(--ui-loading-overlay) 72%, transparent) 0%, var(--ui-loading-overlay-strong) 100%);
+    -webkit-backdrop-filter: blur(14px) saturate(1.12);
+    backdrop-filter: blur(14px) saturate(1.12);
+  }
+
+  .cad-loading-ascii {
+    text-shadow:
+      0 0 18px color-mix(in srgb, var(--ui-accent) 18%, transparent),
+      0 1px 0 rgb(0 0 0 / 0.45);
   }
 
   [data-slot="sidebar-wrapper"][data-sidebar-resizing="true"] [data-slot="sidebar-gap"],

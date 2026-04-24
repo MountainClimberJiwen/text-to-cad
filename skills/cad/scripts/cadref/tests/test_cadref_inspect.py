@@ -459,6 +459,21 @@ class CadrefInspectTests(unittest.TestCase):
         self.assertIn("e1", topology["edges"])
         self.assertIn("v1", topology["vertices"])
 
+    def test_non_leaf_occurrence_detail_reports_children(self) -> None:
+        with mock.patch.object(cadref_inspect, "find_step_path", return_value=self.step_path), mock.patch.object(
+            cadref_inspect,
+            "extract_selectors",
+            return_value=SelectorBundle(manifest=_refs_manifest(self.cad_ref)),
+        ):
+            result = cadref_inspect.inspect_cad_refs(f"@cad[{self.cad_ref}#o1]", detail=True)
+
+        self.assertTrue(result["ok"])
+        selection = result["tokens"][0]["selections"][0]
+        self.assertEqual("occurrence", selection["selectorType"])
+        self.assertEqual("o1", selection["normalizedSelector"])
+        self.assertEqual(1, selection["detail"]["childCount"])
+        self.assertEqual(["o1.2"], selection["detail"]["descendantOccurrenceIds"])
+
     def test_assembly_topology_lookup_resolves_from_generated_step(self) -> None:
         assembly_cad_ref = f"models/{self.relative_dir}/sample-assembly"
         assembly_path = self.temp_root / "sample-assembly.py"

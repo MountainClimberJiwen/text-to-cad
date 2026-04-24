@@ -84,26 +84,14 @@ def resolve_view(view: str | CameraView) -> CameraView:
     return VIEW_PRESETS[view] if isinstance(view, str) else view
 
 
-def _parse_hex_color(raw_value: str | None) -> tuple[float, float, float] | None:
-    normalized = str(raw_value or "").strip()
-    if not normalized:
-        return None
-    if len(normalized) == 4 and normalized.startswith("#"):
-        normalized = "#" + "".join(channel * 2 for channel in normalized[1:])
-    if len(normalized) != 7 or not normalized.startswith("#"):
-        return None
-    try:
-        return tuple(int(normalized[index:index + 2], 16) / 255 for index in (1, 3, 5))  # type: ignore[return-value]
-    except ValueError:
-        return None
-
-
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Render CAD snapshot PNGs from GLB/STL files or Python assembly entries.")
+    parser = argparse.ArgumentParser(
+        description="Render CAD snapshot PNGs from GLB or STL mesh files. Prefer generated assembly GLBs."
+    )
     parser.add_argument(
         "input",
         type=Path,
-        help="Path to a part GLB/STL, or a Python assembly generator.",
+        help="Path to a part GLB, generated assembly GLB, or STL mesh.",
     )
     parser.add_argument("--out", type=Path, help="Write one PNG snapshot to this path.")
     parser.add_argument(
@@ -275,7 +263,10 @@ def load_mesh_instances(input_path: Path) -> list[MeshInstance]:
     resolved_input = _resolve_cad_path(input_path, kind="input")
     lowered = resolved_input.name.lower()
     if lowered.endswith(".py"):
-        return _load_assembly_instances(resolved_input)
+        raise ValueError(
+            "Python assembly inputs are no longer supported by snapshot; "
+            "render the generated assembly GLB instead."
+        )
     if lowered.endswith(".glb"):
         return [_read_glb_mesh(resolved_input)]
     if lowered.endswith(".stl"):
@@ -325,38 +316,9 @@ def _resolve_cad_path(path: Path, *, kind: str) -> Path:
     if not resolved.exists():
         raise FileNotFoundError(f"snapshot {kind} not found: {path}")
     lowered = resolved.name.lower()
-    if lowered.endswith((".py", ".glb", ".stl")):
+    if lowered.endswith((".glb", ".stl")):
         return resolved
     return resolved
-
-
-def _load_assembly_instances(
-    assembly_path: Path,
-) -> list[MeshInstance]:
-    from common.assembly_flatten import flatten_source_path
-
-    try:
-        resolved_parts = flatten_source_path(assembly_path)
-    except Exception as exc:
-        raise ValueError(str(exc)) from exc
-
-    mesh_cache: dict[Path, MeshInstance] = {}
-    output: list[MeshInstance] = []
-    for part in resolved_parts:
-        mesh = _read_glb_mesh(
-            _resolve_cad_path(part.glb_path, kind="part GLB"),
-            transform=part.transform,
-            mesh_cache=mesh_cache,
-        )
-        explicit_color = _parse_hex_color(part.color)
-        output.append(
-            MeshInstance(
-                vertices=mesh.vertices,
-                triangles=mesh.triangles,
-                color_rgb=explicit_color if explicit_color is not None else mesh.color_rgb,
-            )
-        )
-    return output
 
 
 def _read_glb_mesh(

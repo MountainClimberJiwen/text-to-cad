@@ -171,7 +171,7 @@ test("buildSidebarDirectoryTree lists CAD files in their exact source directory"
   );
 });
 
-test("file explorer expanded directories persist through workspace global state", () => {
+test("workspace global state persists expanded directories and URDF entry animation preference", () => {
   const originalWindow = globalThis.window;
   globalThis.window = {
     localStorage: createMemoryStorage(),
@@ -186,7 +186,8 @@ test("file explorer expanded directories persist through workspace global state"
       expandedDirectoryIds: ["parts", "parts/imports", "parts"],
       sidebarOpen: false,
       sidebarWidth: 312,
-      tabToolsWidth: 344
+      tabToolsWidth: 344,
+      urdfEntryAnimationEnabled: false
     });
 
     const restoredSession = readCadWorkspaceSessionState();
@@ -196,6 +197,32 @@ test("file explorer expanded directories persist through workspace global state"
       ["parts", "parts/imports"]
     );
     assert.equal(restoredSession.query, "sample");
+    assert.equal(restoredSession.urdfEntryAnimationEnabled, false);
+  } finally {
+    if (originalWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = originalWindow;
+    }
+  }
+});
+
+test("workspace global state defaults URDF entry animation preference to enabled", () => {
+  const originalWindow = globalThis.window;
+  globalThis.window = {
+    localStorage: createMemoryStorage(),
+    sessionStorage: createMemoryStorage()
+  };
+
+  try {
+    writeCadWorkspaceSessionState({
+      openTabs: [],
+      selectedKey: "",
+      query: ""
+    });
+
+    const restoredSession = readCadWorkspaceSessionState();
+    assert.equal(restoredSession.urdfEntryAnimationEnabled, true);
   } finally {
     if (originalWindow === undefined) {
       delete globalThis.window;

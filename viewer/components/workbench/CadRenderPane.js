@@ -52,7 +52,8 @@ export default function CadRenderPane({
   selectionCount,
   copyButtonLabel,
   handleCopySelection,
-  handleScreenshotCopy
+  handleScreenshotCopy,
+  partIntroAnimation = null
 }) {
   const viewerAlertVariant = viewerAlert?.severity === "warning" ? "warning" : "destructive";
   const viewerAlertSummaryClasses = viewerAlert?.severity === "warning" ? "text-chart-5" : "text-destructive";
@@ -127,6 +128,7 @@ export default function CadRenderPane({
           onActivateReference={handleModelReferenceActivate}
           onDoubleActivateReference={handleModelReferenceDoubleActivate}
           onViewerAlertChange={handleViewerAlertChange}
+          partIntroAnimation={partIntroAnimation}
         />
       )}
       {!previewMode && viewerAlert ? (

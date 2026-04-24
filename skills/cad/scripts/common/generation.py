@@ -376,12 +376,12 @@ def _write_part_step_payload(envelope: dict[str, object], *, output_path: Path, 
 def _write_assembly_step_payload(envelope: dict[str, object], *, output_path: Path, script_path: Path) -> None:
     from .assembly_export import export_assembly_step_from_payload
 
-    if "instances" not in envelope:
+    if "instances" not in envelope and "children" not in envelope:
         raise TypeError(
-            f"{_display_path(script_path)} gen_step() envelope must define 'instances'"
+            f"{_display_path(script_path)} gen_step() envelope must define 'instances' or 'children'"
         )
     export_assembly_step_from_payload(
-        {"instances": envelope["instances"]},
+        {key: envelope[key] for key in ("instances", "children") if key in envelope},
         assembly_path=script_path,
         output_path=output_path,
     )
@@ -766,7 +766,7 @@ def _expand_specs_with_file_dependencies(specs: Sequence[EntrySpec]) -> list[Ent
         for instance in assembly_spec.instances:
             if instance.source_path.resolve() in seen_step_paths:
                 continue
-            source = source_from_path(instance.source_path)
+            source = find_source_by_path(instance.source_path) or source_from_path(instance.source_path)
             if source is None:
                 continue
             child_spec = _entry_spec_from_source(source)

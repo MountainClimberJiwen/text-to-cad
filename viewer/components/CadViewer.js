@@ -152,6 +152,12 @@ const BEND_GUIDE_COLOR = "#f59e0b";
 const BEND_GUIDE_WIDTH_MULTIPLIER = 1.35;
 const PART_HOVER_OPACITY_BOOST = 0.08;
 const PART_SELECTED_OPACITY_BOOST = 0.12;
+const URDF_PART_INTRO_STAGGER_MS = 150;
+const URDF_PART_INTRO_DURATION_MS = 620;
+const URDF_PART_INTRO_INITIAL_SCALE = 0.76;
+const URDF_PART_INTRO_MAX_TILT_RAD = Math.PI / 16;
+const URDF_PART_INTRO_VISIBILITY_EPSILON = 0.012;
+const URDF_PART_INTRO_MIN_TRAVEL = 0.022;
 const LOOK_BACKGROUND_TYPES = {
   SOLID: "solid",
   LINEAR: "linear",
@@ -942,6 +948,32 @@ function easeInOutCubic(t) {
   return t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2;
 }
 
+function easeOutCubic(t) {
+  if (t <= 0) {
+    return 0;
+  }
+  if (t >= 1) {
+    return 1;
+  }
+  return 1 - ((1 - t) ** 3);
+}
+
+function easeOutBack(t) {
+  if (t <= 0) {
+    return 0;
+  }
+  if (t >= 1) {
+    return 1;
+  }
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + (c3 * ((t - 1) ** 3)) + (c1 * ((t - 1) ** 2));
+}
+
+function mix(a, b, t) {
+  return a + ((b - a) * t);
+}
+
 function readPerspectiveSnapshot(runtime) {
   if (!runtime?.camera || !runtime?.controls) {
     return null;
@@ -1235,6 +1267,15 @@ function readBoundsCenter(THREE, bounds) {
   return min.add(max).multiplyScalar(0.5);
 }
 
+function readBoundsRadius(THREE, bounds) {
+  const min = readBoundsVector(THREE, bounds, "min");
+  const max = readBoundsVector(THREE, bounds, "max");
+  if (!min || !max) {
+    return 0;
+  }
+  return max.sub(min).length() * 0.5;
+}
+
 function getActiveViewPlaneFaceId(runtime) {
   if (!runtime?.THREE || !runtime?.camera || !runtime?.controls) {
     return "";
@@ -1288,6 +1329,16 @@ function clearSceneGroup(group) {
 
 function shouldUseDisplayVertexColors(meshData) {
   return !!meshData?.has_source_colors && isNumericArray(meshData?.colors, 3);
+}
+
+function partUsesDisplayVertexColors(meshData, part) {
+  if (!shouldUseDisplayVertexColors(meshData)) {
+    return false;
+  }
+  if (part && Object.hasOwn(part, "hasSourceColors")) {
+    return !!part.hasSourceColors;
+  }
+  return true;
 }
 
 function createSurfaceMaterial(THREE, viewerTheme, { color, useVertexColors = false } = {}) {
@@ -1572,7 +1623,7 @@ function buildPartGeometry(THREE, meshData, part, recomputeNormals, materialSett
   const positionStart = vertexOffset * 3;
   const positionEnd = positionStart + vertexCount * 3;
   const localVertices = meshData.vertices.slice(positionStart, positionEnd);
-  const localColors = shouldUseDisplayVertexColors(meshData)
+  const localColors = partUsesDisplayVertexColors(meshData, part)
     ? shapeSourceColorBuffer(THREE, meshData.colors.slice(positionStart, positionEnd), materialSettings)
     : null;
   const localNormals = isNumericArray(meshData.normals, 3) ? meshData.normals.slice(positionStart, positionEnd) : null;
@@ -1691,6 +1742,100 @@ function applyPartTransform(THREE, object3d, transform) {
   object3d.matrixWorldNeedsUpdate = true;
 }
 
+function buildPartTransformMatrix(THREE, transform) {
+  const matrix = new THREE.Matrix4();
+  if (!Array.isArray(transform) || transform.length !== 16) {
+    matrix.identity();
+    return matrix;
+  }
+  matrix.set(
+    Number(transform[0]) || 0,
+    Number(transform[1]) || 0,
+    Number(transform[2]) || 0,
+    Number(transform[3]) || 0,
+    Number(transform[4]) || 0,
+    Number(transform[5]) || 0,
+    Number(transform[6]) || 0,
+    Number(transform[7]) || 0,
+    Number(transform[8]) || 0,
+    Number(transform[9]) || 0,
+    Number(transform[10]) || 0,
+    Number(transform[11]) || 0,
+    Number(transform[12]) || 0,
+    Number(transform[13]) || 0,
+    Number(transform[14]) || 0,
+    Number(transform[15]) || 0
+  );
+  return matrix;
+}
+
+function applyObjectMatrix(THREE, object3d, matrix) {
+  if (!object3d || !(matrix instanceof THREE.Matrix4)) {
+    return;
+  }
+  object3d.matrixAutoUpdate = false;
+  const targetMatrix = object3d.matrix instanceof THREE.Matrix4 ? object3d.matrix : new THREE.Matrix4();
+  targetMatrix.copy(matrix);
+  object3d.matrix = targetMatrix;
+  object3d.matrixWorldNeedsUpdate = true;
+}
+
+function buildDisplayRecordIntroMatrix(THREE, record, modelRadius = 1) {
+  const partCenter = record?.partCenter instanceof THREE.Vector3
+    ? record.partCenter.clone()
+    : null;
+  if (!partCenter) {
+    return null;
+  }
+
+  const introProgress = clamp(Number(record?.introProgress), 0, 1);
+  if (introProgress >= 0.999) {
+    return null;
+  }
+
+  const reveal = easeOutCubic(introProgress);
+  const scale = mix(URDF_PART_INTRO_INITIAL_SCALE, 1, easeOutBack(introProgress));
+  const partRadius = Math.max(readBoundsRadius(THREE, record?.partBounds), modelRadius * 0.04, 0.012);
+  const travelDistance = clamp(partRadius * 0.45, URDF_PART_INTRO_MIN_TRAVEL, Math.max(modelRadius * 0.08, 0.05));
+  const driftDirection = new THREE.Vector3(partCenter.x, (partCenter.y * 0.4) + (modelRadius * 0.1) + 0.08, partCenter.z);
+  if (driftDirection.lengthSq() < 1e-6) {
+    driftDirection.set(0.35, 1, 0.25);
+  }
+  driftDirection.normalize();
+
+  const translation = driftDirection.multiplyScalar(travelDistance * ((1 - reveal) ** 2));
+  const rotationAxis = new THREE.Vector3(-driftDirection.z, 0, driftDirection.x);
+  if (rotationAxis.lengthSq() < 1e-6) {
+    rotationAxis.set(0.2, 0, 1);
+  }
+  rotationAxis.normalize();
+  const rotationAngle = URDF_PART_INTRO_MAX_TILT_RAD * ((1 - reveal) ** 2);
+
+  const translateToCenter = new THREE.Matrix4().makeTranslation(partCenter.x, partCenter.y, partCenter.z);
+  const translateFromCenter = new THREE.Matrix4().makeTranslation(-partCenter.x, -partCenter.y, -partCenter.z);
+  const offsetMatrix = new THREE.Matrix4().makeTranslation(translation.x, translation.y, translation.z);
+  const rotationScaleMatrix = new THREE.Matrix4().compose(
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Quaternion().setFromAxisAngle(rotationAxis, rotationAngle),
+    new THREE.Vector3(scale, scale, scale)
+  );
+
+  return offsetMatrix.multiply(translateToCenter).multiply(rotationScaleMatrix).multiply(translateFromCenter);
+}
+
+function applyDisplayRecordTransform(THREE, record, modelRadius = 1) {
+  if (!record) {
+    return;
+  }
+
+  const baseMatrix = buildPartTransformMatrix(THREE, record.baseTransform);
+  const introMatrix = buildDisplayRecordIntroMatrix(THREE, record, modelRadius);
+  const combinedMatrix = introMatrix ? introMatrix.multiply(baseMatrix) : baseMatrix;
+
+  applyObjectMatrix(THREE, record.mesh, combinedMatrix);
+  applyObjectMatrix(THREE, record.edges, combinedMatrix);
+}
+
 function applyRuntimeModelBounds(THREE, runtime, bounds, sceneScaleMode) {
   const boundsMin = Array.isArray(bounds?.min) ? bounds.min : [0, 0, 0];
   const boundsMax = Array.isArray(bounds?.max) ? bounds.max : [0, 0, 0];
@@ -1749,15 +1894,25 @@ function applyPartVisualState(THREE, records, {
 }) {
   const hidden = new Set(Array.isArray(hiddenPartIds) ? hiddenPartIds : []);
   const selected = new Set(Array.isArray(selectedPartIds) ? selectedPartIds : []);
+  const hovered = new Set(
+    (Array.isArray(hoveredPartId) ? hoveredPartId : [hoveredPartId])
+      .map((id) => String(id || "").trim())
+      .filter(Boolean)
+  );
   const baseEdgeColor = edgeSettings?.color || viewerTheme?.edge || BASE_VIEWER_THEME.edge;
   const defaultSurfaceOpacity = Number.isFinite(Number(viewerTheme?.surfaceOpacity))
     ? Number(viewerTheme.surfaceOpacity)
     : 1;
-  const focusId = String(focusedPartId || "").trim();
+  const focusIds = new Set(
+    (Array.isArray(focusedPartId) ? focusedPartId : [focusedPartId])
+      .map((id) => String(id || "").trim())
+      .filter(Boolean)
+  );
+  const hasFocus = focusIds.size > 0;
   const baseEdgeOpacity = Number.isFinite(Number(edgeSettings?.opacity))
     ? clamp(Number(edgeSettings.opacity), 0, 1)
     : (viewerTheme?.edgeOpacity ?? BASE_VIEWER_THEME.edgeOpacity ?? CAD_EDGE_OPACITY);
-  const dimmedEdgeOpacity = focusId
+  const dimmedEdgeOpacity = hasFocus
     ? Math.max(Math.min(baseEdgeOpacity * 0.28, 0.12), 0.04)
     : baseEdgeOpacity;
   const {
@@ -1770,19 +1925,23 @@ function applyPartVisualState(THREE, records, {
   for (const record of Array.isArray(records) ? records : []) {
     const isHidden = hidden.has(record.partId);
     const isSelected = selected.has(record.partId);
-    const isHovered = !isHidden && hoveredPartId === record.partId;
-    const isFocused = !isHidden && !!focusId && focusId === record.partId;
-    const isDimmed = !isHidden && !!focusId && !isFocused;
+    const isHovered = !isHidden && hovered.has(record.partId);
+    const isFocused = !isHidden && hasFocus && focusIds.has(record.partId);
+    const isDimmed = !isHidden && hasFocus && !isFocused;
+    const introOpacity = Number.isFinite(Number(record?.introOpacity))
+      ? clamp(Number(record.introOpacity), 0, 1)
+      : 1;
+    const introVisible = introOpacity > URDF_PART_INTRO_VISIBILITY_EPSILON;
 
-    record.mesh.visible = !isHidden;
+    record.mesh.visible = !isHidden && introVisible;
     if (record.edges) {
-      record.edges.visible = showEdges && !isHidden;
+      record.edges.visible = showEdges && !isHidden && introVisible;
     }
 
     const baseSurfaceOpacity = Number.isFinite(Number(record.baseOpacity))
       ? Number(record.baseOpacity)
       : defaultSurfaceOpacity;
-    const dimmedSurfaceOpacity = focusId
+    const dimmedSurfaceOpacity = hasFocus
       ? Math.max(Math.min(baseSurfaceOpacity * 0.2, 0.24), 0.1)
       : baseSurfaceOpacity;
     const highlightedSurfaceOpacity = isSelected
@@ -1790,8 +1949,8 @@ function applyPartVisualState(THREE, records, {
       : isHovered
         ? clamp(baseSurfaceOpacity + PART_HOVER_OPACITY_BOOST, 0, 1)
         : baseSurfaceOpacity;
-    const nextSurfaceOpacity = isDimmed ? dimmedSurfaceOpacity : highlightedSurfaceOpacity;
-    record.material.transparent = isDimmed || nextSurfaceOpacity < 0.999;
+    const nextSurfaceOpacity = (isDimmed ? dimmedSurfaceOpacity : highlightedSurfaceOpacity) * introOpacity;
+    record.material.transparent = isDimmed || introOpacity < 0.999 || nextSurfaceOpacity < 0.999;
     record.material.opacity = nextSurfaceOpacity;
 
     if (record.baseColor && record.material.color) {
@@ -1828,12 +1987,12 @@ function applyPartVisualState(THREE, records, {
             : baseEdgeColor
       );
       record.edgeMaterial.opacity = isSelected
-        ? 1
+        ? introOpacity
         : isHovered
-          ? 1
+          ? introOpacity
           : isDimmed
-            ? dimmedEdgeOpacity
-            : baseEdgeOpacity;
+            ? dimmedEdgeOpacity * introOpacity
+            : baseEdgeOpacity * introOpacity;
     }
   }
 }
@@ -3816,6 +3975,7 @@ const CadViewer = forwardRef(function CadViewer({
   isLoading = false,
   pickMode = VIEWER_PICK_MODE.AUTO,
   renderPartsIndividually = false,
+  partIntroAnimation = null,
   sceneScaleMode = VIEWER_SCENE_SCALE.CAD,
   pickableParts = [],
   hiddenPartIds = [],
@@ -3868,6 +4028,10 @@ const CadViewer = forwardRef(function CadViewer({
     modelKey: "",
     offset: null
   });
+  const partIntroStateRef = useRef({
+    frameId: 0,
+    playedIntroKey: ""
+  });
   const [error, setError] = useState("");
   const [viewerReadyTick, setViewerReadyTick] = useState(0);
   const [activeViewPlaneFace, setActiveViewPlaneFace] = useState("");
@@ -3880,6 +4044,45 @@ const CadViewer = forwardRef(function CadViewer({
     ? normalizeFloorMode(floorModeOverride, resolveFloorMode(normalizedLookSettings.floor))
     : resolveFloorMode(normalizedLookSettings.floor);
   const edgesVisible = showEdges && normalizedLookSettings.edges.enabled;
+  const partVisualStateEnabled =
+    pickMode === VIEWER_PICK_MODE.PARTS ||
+    pickMode === VIEWER_PICK_MODE.ASSEMBLY ||
+    (
+      pickMode === VIEWER_PICK_MODE.AUTO &&
+      Array.isArray(pickableParts) &&
+      pickableParts.length > 0
+    ) ||
+    !!String(focusedPartId || "").trim();
+  const partVisualStateRef = useRef({
+    viewerTheme,
+    edgeSettings: normalizedLookSettings.edges,
+    hiddenPartIds: partVisualStateEnabled ? hiddenPartIds : [],
+    hoveredPartId: partVisualStateEnabled ? hoveredPartId : "",
+    focusedPartId: partVisualStateEnabled ? focusedPartId : "",
+    selectedPartIds: partVisualStateEnabled ? selectedPartIds : [],
+    showEdges: edgesVisible
+  });
+
+  useEffect(() => {
+    partVisualStateRef.current = {
+      viewerTheme,
+      edgeSettings: normalizedLookSettings.edges,
+      hiddenPartIds: partVisualStateEnabled ? hiddenPartIds : [],
+      hoveredPartId: partVisualStateEnabled ? hoveredPartId : "",
+      focusedPartId: partVisualStateEnabled ? focusedPartId : "",
+      selectedPartIds: partVisualStateEnabled ? selectedPartIds : [],
+      showEdges: edgesVisible
+    };
+  }, [
+    edgesVisible,
+    focusedPartId,
+    hiddenPartIds,
+    hoveredPartId,
+    partVisualStateEnabled,
+    selectedPartIds,
+    viewerTheme,
+    normalizedLookSettings.edges
+  ]);
   const focusedPartIdValue = String(focusedPartId || "").trim();
   const activeSurfaceLineFaceId = String(surfaceLineFaceId || "").trim();
   const filteredPickableFaces = useMemo(() => (
@@ -4536,6 +4739,10 @@ const CadViewer = forwardRef(function CadViewer({
           edgeMaterial,
           baseColor,
           sourceColor,
+          baseTransform: displayPartTransform,
+          introOpacity: 1,
+          introProgress: 1,
+          introOrder: Math.max(Math.round(Number(part?.introOrder) || 0), 0),
           partCenter: readBoundsCenter(THREE, part.bounds),
           partBounds: part.bounds,
           hasVertexColors,
@@ -4596,6 +4803,10 @@ const CadViewer = forwardRef(function CadViewer({
         edgeMaterial,
         baseColor,
         sourceColor,
+        baseTransform: null,
+        introOpacity: 1,
+        introProgress: 1,
+        introOrder: 0,
         partCenter: readBoundsCenter(THREE, meshData.bounds),
         partBounds: meshData.bounds,
         hasVertexColors,
@@ -4606,6 +4817,7 @@ const CadViewer = forwardRef(function CadViewer({
     runtime.displayRecords = displayRecords;
     for (const record of runtime.displayRecords) {
       applyMaterialSettingsToRecord(THREE, record, materialSettings);
+      applyDisplayRecordTransform(THREE, record, runtime.modelRadius || 1);
     }
     runtime.hasVisibleModel = true;
 
@@ -4736,10 +4948,11 @@ const CadViewer = forwardRef(function CadViewer({
       if (!part) {
         continue;
       }
-      applyPartTransform(runtime.THREE, record.mesh, part.transform);
-      applyPartTransform(runtime.THREE, record.edges, part.transform);
+      record.baseTransform = part.transform;
       record.partBounds = part.bounds;
       record.partCenter = readBoundsCenter(runtime.THREE, part.bounds);
+      record.introOrder = Math.max(Math.round(Number(part?.introOrder) || 0), 0);
+      applyDisplayRecordTransform(runtime.THREE, record, runtime.modelRadius || 1);
       updated = true;
     }
 
@@ -4764,27 +4977,115 @@ const CadViewer = forwardRef(function CadViewer({
       return;
     }
 
-    const partVisualStateEnabled =
-      pickMode === VIEWER_PICK_MODE.PARTS ||
-      pickMode === VIEWER_PICK_MODE.ASSEMBLY ||
-      (
-        pickMode === VIEWER_PICK_MODE.AUTO &&
-        Array.isArray(pickableParts) &&
-        pickableParts.length > 0
-      ) ||
-      !!String(focusedPartId || "").trim();
-
-    applyPartVisualState(runtime.THREE, runtime.displayRecords, {
-      viewerTheme,
-      edgeSettings: normalizedLookSettings.edges,
-      hiddenPartIds: partVisualStateEnabled ? hiddenPartIds : [],
-      hoveredPartId: partVisualStateEnabled ? hoveredPartId : "",
-      focusedPartId: partVisualStateEnabled ? focusedPartId : "",
-      selectedPartIds: partVisualStateEnabled ? selectedPartIds : [],
-      showEdges: edgesVisible
-    });
+    applyPartVisualState(runtime.THREE, runtime.displayRecords, partVisualStateRef.current);
     runtime.requestRender();
-  }, [edgesVisible, focusedPartId, hiddenPartIds, hoveredPartId, pickMode, pickableParts, selectedPartIds, viewerReadyTick, viewerTheme, normalizedLookSettings.edges]);
+  }, [viewerReadyTick, partVisualStateEnabled, edgesVisible, focusedPartId, hiddenPartIds, hoveredPartId, pickMode, pickableParts, selectedPartIds, viewerTheme, normalizedLookSettings.edges]);
+
+  useEffect(() => {
+    const runtime = runtimeRef.current;
+    if (
+      !runtime?.THREE ||
+      isLoading ||
+      !renderPartsIndividually ||
+      !Array.isArray(runtime.displayRecords) ||
+      !runtime.displayRecords.length
+    ) {
+      return;
+    }
+
+    const animationEnabled = partIntroAnimation?.enabled !== false;
+    const introKey = String(partIntroAnimation?.introKey || "").trim();
+    const replayToken = Math.max(Number(partIntroAnimation?.replayToken) || 0, 0);
+    const playbackKey = replayToken ? `${introKey}:replay:${replayToken}` : introKey;
+    const stopAnimation = () => {
+      if (partIntroStateRef.current.frameId && typeof cancelAnimationFrame === "function") {
+        cancelAnimationFrame(partIntroStateRef.current.frameId);
+      }
+      partIntroStateRef.current.frameId = 0;
+    };
+    const snapToVisible = () => {
+      for (const record of runtime.displayRecords) {
+        record.introProgress = 1;
+        record.introOpacity = 1;
+        applyDisplayRecordTransform(runtime.THREE, record, runtime.modelRadius || 1);
+      }
+      applyPartVisualState(runtime.THREE, runtime.displayRecords, partVisualStateRef.current);
+      runtime.requestRender();
+    };
+
+    stopAnimation();
+
+    if (!introKey) {
+      partIntroStateRef.current.playedIntroKey = "";
+      snapToVisible();
+      return stopAnimation;
+    }
+
+    if (!animationEnabled && !replayToken) {
+      partIntroStateRef.current.playedIntroKey = playbackKey;
+      snapToVisible();
+      return stopAnimation;
+    }
+
+    if (partIntroStateRef.current.playedIntroKey === playbackKey) {
+      snapToVisible();
+      return stopAnimation;
+    }
+
+    partIntroStateRef.current.playedIntroKey = playbackKey;
+    const startTime = typeof performance !== "undefined" && typeof performance.now === "function"
+      ? performance.now()
+      : Date.now();
+
+    for (const record of runtime.displayRecords) {
+      record.introProgress = 0;
+      record.introOpacity = 0;
+      applyDisplayRecordTransform(runtime.THREE, record, runtime.modelRadius || 1);
+    }
+    applyPartVisualState(runtime.THREE, runtime.displayRecords, partVisualStateRef.current);
+    runtime.requestRender();
+
+    const stepIntro = (timestamp) => {
+      let hasPendingRecords = false;
+      for (const record of runtime.displayRecords) {
+        const introOrder = Math.max(Math.round(Number(record?.introOrder) || 0), 0);
+        const delayMs = introOrder * URDF_PART_INTRO_STAGGER_MS;
+        const progress = clamp((timestamp - startTime - delayMs) / URDF_PART_INTRO_DURATION_MS, 0, 1);
+        record.introProgress = progress;
+        record.introOpacity = easeOutCubic(clamp(progress / 0.6, 0, 1));
+        applyDisplayRecordTransform(runtime.THREE, record, runtime.modelRadius || 1);
+        if (progress < 0.999) {
+          hasPendingRecords = true;
+        }
+      }
+
+      applyPartVisualState(runtime.THREE, runtime.displayRecords, partVisualStateRef.current);
+      runtime.requestRender();
+
+      if (hasPendingRecords && typeof requestAnimationFrame === "function") {
+        partIntroStateRef.current.frameId = requestAnimationFrame(stepIntro);
+        return;
+      }
+
+      partIntroStateRef.current.frameId = 0;
+      snapToVisible();
+    };
+
+    if (typeof requestAnimationFrame === "function") {
+      partIntroStateRef.current.frameId = requestAnimationFrame(stepIntro);
+    } else {
+      snapToVisible();
+    }
+
+    return stopAnimation;
+  }, [
+    isLoading,
+    renderPartsIndividually,
+    viewerReadyTick,
+    partIntroAnimation?.enabled,
+    partIntroAnimation?.introKey,
+    partIntroAnimation?.replayToken
+  ]);
 
   useEffect(() => {
     const runtime = runtimeRef.current;
@@ -4944,71 +5245,17 @@ const CadViewer = forwardRef(function CadViewer({
     }
     const highlightGroup = runtime.partHighlightGroup;
     clearOverlayGroup(runtime, highlightGroup);
-    const highlightLineWidth = getEdgeThickness(normalizedLookSettings.edges, viewerTheme) * REFERENCE_HIGHLIGHT_WIDTH_MULTIPLIER;
 
-    if (pickMode !== VIEWER_PICK_MODE.ASSEMBLY) {
-      return () => {
-        clearOverlayGroup(runtime, highlightGroup);
-      };
-    }
-
-    const hidden = new Set(Array.isArray(hiddenPartIds) ? hiddenPartIds : []);
-    const selected = Array.isArray(selectedPartIds) ? selectedPartIds : [];
-    const seenPartIds = new Set();
-    const orderedPartIds = [];
-    for (const partId of selected) {
-      const normalizedPartId = String(partId || "").trim();
-      if (!normalizedPartId || hidden.has(normalizedPartId) || seenPartIds.has(normalizedPartId)) {
-        continue;
-      }
-      seenPartIds.add(normalizedPartId);
-      orderedPartIds.push(normalizedPartId);
-    }
-    const normalizedHoveredPartId = String(hoveredPartId || "").trim();
-    if (normalizedHoveredPartId && !hidden.has(normalizedHoveredPartId) && !seenPartIds.has(normalizedHoveredPartId)) {
-      orderedPartIds.push(normalizedHoveredPartId);
-    }
-
-    if (!orderedPartIds.length) {
-      return () => {
-        clearOverlayGroup(runtime, highlightGroup);
-      };
-    }
-
-    const displayRecordByPartId = new Map(
-      (Array.isArray(runtime.displayRecords) ? runtime.displayRecords : []).map((record) => [record.partId, record])
-    );
-
-    for (const partId of orderedPartIds) {
-      const record = displayRecordByPartId.get(partId);
-      if (!record?.mesh?.visible) {
-        continue;
-      }
-      const isHovered = partId === normalizedHoveredPartId;
-      const highlightColor = isHovered ? REFERENCE_HOVER_COLOR : REFERENCE_SELECTED_COLOR;
-      const edgeGeometry = record.edges?.geometry || buildDisplayEdgeGeometry(THREE, record.mesh.geometry);
-      const highlightLine = createScreenSpaceLineSegmentsFromGeometry(runtime, edgeGeometry, {
-        color: highlightColor,
-        opacity: 1,
-        lineWidth: highlightLineWidth,
-        renderOrder: 23
-      });
-      if (!record.edges?.geometry && edgeGeometry) {
-        edgeGeometry.dispose?.();
-      }
-      if (!highlightLine) {
-        continue;
-      }
-      highlightGroup.add(highlightLine);
-    }
-
-    highlightGroup.visible = highlightGroup.children.length > 0;
+    // Assembly hover and selection use material state only. Building outline
+    // geometry here is expensive for dense imported components and is not
+    // needed until a leaf part is inspected for face/edge picking.
+    highlightGroup.visible = false;
     runtime.requestRender();
 
     return () => {
       clearOverlayGroup(runtime, highlightGroup);
     };
-  }, [hiddenPartIds, hoveredPartId, modelKey, pickMode, selectedPartIds, viewerReadyTick, viewerTheme, normalizedLookSettings.edges]);
+  }, [modelKey, viewerReadyTick]);
 
   useEffect(() => {
     const runtime = runtimeRef.current;

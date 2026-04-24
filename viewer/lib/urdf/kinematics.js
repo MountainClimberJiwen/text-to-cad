@@ -137,7 +137,7 @@ export function buildDefaultUrdfJointValues(urdfData) {
   const joints = Array.isArray(urdfData?.joints) ? urdfData.joints : [];
   return Object.fromEntries(
     joints
-      .filter((joint) => String(joint?.type || "") !== "fixed")
+      .filter((joint) => String(joint?.type || "") !== "fixed" && !joint?.mimic)
       .map((joint) => [String(joint?.name || ""), Number(joint?.defaultValueDeg) || 0])
       .filter(([name]) => name)
   );
@@ -145,13 +145,43 @@ export function buildDefaultUrdfJointValues(urdfData) {
 
 export function clampJointValueDeg(joint, valueDeg) {
   const defaultValue = Number(joint?.defaultValueDeg) || 0;
-  if (String(joint?.type || "") === "fixed") {
+  const jointType = String(joint?.type || "");
+  if (jointType === "fixed") {
     return defaultValue;
   }
   const numericValue = Number.isFinite(Number(valueDeg)) ? Number(valueDeg) : defaultValue;
+  if (jointType === "continuous") {
+    return numericValue;
+  }
   const minValue = Number.isFinite(Number(joint?.minValueDeg)) ? Number(joint.minValueDeg) : numericValue;
   const maxValue = Number.isFinite(Number(joint?.maxValueDeg)) ? Number(joint.maxValueDeg) : numericValue;
   return Math.min(Math.max(numericValue, minValue), Math.max(minValue, maxValue));
+}
+
+function isAngularJoint(joint) {
+  const jointType = String(joint?.type || "fixed");
+  return jointType === "continuous" || jointType === "revolute";
+}
+
+function jointValueToNative(joint, value) {
+  const clampedValue = clampJointValueDeg(joint, value);
+  return isAngularJoint(joint) ? (clampedValue * Math.PI) / 180 : clampedValue;
+}
+
+function nativeToJointValue(joint, value) {
+  const numericValue = Number.isFinite(Number(value)) ? Number(value) : 0;
+  return isAngularJoint(joint) ? (numericValue * 180) / Math.PI : numericValue;
+}
+
+function translationAlongAxisTransform(axis, distance) {
+  const [x, y, z] = normalizeVector(axis);
+  const safeDistance = Number.isFinite(Number(distance)) ? Number(distance) : 0;
+  return [
+    1, 0, 0, x * safeDistance,
+    0, 1, 0, y * safeDistance,
+    0, 0, 1, z * safeDistance,
+    0, 0, 0, 1
+  ];
 }
 
 export function posedJointLocalTransform(joint, valueDeg) {
@@ -161,16 +191,42 @@ export function posedJointLocalTransform(joint, valueDeg) {
     return originTransform;
   }
   const axis = toVector3(joint?.axis ?? joint?.axisInJointFrame ?? joint?.axisInParentFrame, [0, 0, 1]);
+  if (jointType === "prismatic") {
+    return multiplyTransforms(originTransform, translationAlongAxisTransform(axis, clampJointValueDeg(joint, valueDeg)));
+  }
   const angleRad = (clampJointValueDeg(joint, valueDeg) * Math.PI) / 180;
   // URDF axes are defined in the joint frame, so the static origin rotation
   // must be applied before the animated axis-angle motion.
   return multiplyTransforms(originTransform, axisAngleTransform(axis, angleRad));
 }
 
+function resolveJointValue(joint, jointByName, jointValuesByName, resolving = new Set()) {
+  const jointName = String(joint?.name || "");
+  if (!joint?.mimic) {
+    return clampJointValueDeg(joint, jointValuesByName?.[jointName]);
+  }
+  if (resolving.has(jointName)) {
+    return clampJointValueDeg(joint, joint?.defaultValueDeg);
+  }
+  resolving.add(jointName);
+  const mimic = joint.mimic;
+  const masterJoint = jointByName.get(String(mimic.joint || ""));
+  const masterValue = masterJoint
+    ? resolveJointValue(masterJoint, jointByName, jointValuesByName, resolving)
+    : Number(jointValuesByName?.[mimic.joint]) || 0;
+  resolving.delete(jointName);
+
+  const masterNativeValue = masterJoint ? jointValueToNative(masterJoint, masterValue) : masterValue;
+  const multiplier = Number.isFinite(Number(mimic.multiplier)) ? Number(mimic.multiplier) : 1;
+  const offset = Number.isFinite(Number(mimic.offset)) ? Number(mimic.offset) : 0;
+  return clampJointValueDeg(joint, nativeToJointValue(joint, (multiplier * masterNativeValue) + offset));
+}
+
 export function solveUrdfLinkWorldTransforms(urdfData, jointValuesByName = {}) {
   const rootLink = String(urdfData?.rootLink || "");
   const rootWorldTransform = toTransformArray(urdfData?.rootWorldTransform);
   const joints = Array.isArray(urdfData?.joints) ? urdfData.joints : [];
+  const jointByName = new Map(joints.map((joint) => [String(joint?.name || ""), joint]).filter(([name]) => name));
   const linkTransforms = new Map();
   if (!rootLink) {
     return linkTransforms;
@@ -194,7 +250,7 @@ export function solveUrdfLinkWorldTransforms(urdfData, jointValuesByName = {}) {
       if (!childLink) {
         continue;
       }
-      const jointValueDeg = jointValuesByName?.[joint.name];
+      const jointValueDeg = resolveJointValue(joint, jointByName, jointValuesByName);
       const childWorldTransform = multiplyTransforms(worldTransform, posedJointLocalTransform(joint, jointValueDeg));
       visit(childLink, childWorldTransform);
     }
@@ -253,11 +309,7 @@ export function buildUrdfMeshGeometry(urdfData, meshesByUrl) {
     totalVertexCount += Math.floor((partMesh.vertices?.length || 0) / 3);
     totalIndexCount += partMesh.indices?.length || 0;
     const visualColor = String(resolvedVisual.visual?.color || "").trim();
-    hasSourceColors ||= !!parseHexColorToLinearRgb(visualColor) || (
-      !visualColor &&
-      !!partMesh.has_source_colors &&
-      partMesh.colors?.length === partMesh.vertices?.length
-    );
+    hasSourceColors ||= urdfVisualHasDisplayColors(visualColor, partMesh);
   }
 
   const vertices = new Float32Array(totalVertexCount * 3);
@@ -279,13 +331,14 @@ export function buildUrdfMeshGeometry(urdfData, meshesByUrl) {
     const vertexCount = Math.floor(sourceVertices.length / 3);
     const triangleCount = Math.floor(sourceIndices.length / 3);
     const visualColor = String(visual?.color || "").trim();
+    const visualRgb = parseHexColorToLinearRgb(visualColor);
+    const partHasSourceColors = !!visualRgb || urdfMeshHasSourceColors(partMesh);
 
     vertices.set(sourceVertices, partVertexOffset * 3);
     if (sourceNormals.length === sourceVertices.length) {
       normals.set(sourceNormals, partVertexOffset * 3);
     }
-    if (hasSourceColors) {
-      const visualRgb = parseHexColorToLinearRgb(visualColor);
+    if (hasSourceColors && partHasSourceColors) {
       if (visualRgb) {
         for (let colorIndex = 0; colorIndex < vertexCount; colorIndex += 1) {
           const offset = (partVertexOffset + colorIndex) * 3;
@@ -314,6 +367,7 @@ export function buildUrdfMeshGeometry(urdfData, meshesByUrl) {
       sourceBounds: partMesh.bounds,
       bounds: partMesh.bounds,
       transform: [...IDENTITY_TRANSFORM],
+      hasSourceColors: partHasSourceColors,
       vertexOffset: partVertexOffset,
       vertexCount,
       triangleOffset: partTriangleOffset,
@@ -336,6 +390,16 @@ export function buildUrdfMeshGeometry(urdfData, meshesByUrl) {
     parts,
     has_source_colors: hasSourceColors
   };
+}
+
+function urdfMeshHasSourceColors(partMesh) {
+  return !!partMesh?.has_source_colors &&
+    partMesh.colors?.length > 0 &&
+    partMesh.colors.length === partMesh.vertices?.length;
+}
+
+function urdfVisualHasDisplayColors(visualColor, partMesh) {
+  return !!parseHexColorToLinearRgb(visualColor) || (!visualColor && urdfMeshHasSourceColors(partMesh));
 }
 
 export function poseUrdfMeshData(urdfData, meshData, jointValuesByName = {}) {

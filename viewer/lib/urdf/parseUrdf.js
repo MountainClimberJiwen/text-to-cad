@@ -6,9 +6,26 @@ const IDENTITY_TRANSFORM = Object.freeze([
   0, 0, 1, 0,
   0, 0, 0, 1
 ]);
+export const TEXTTOCAD_URDF_NAMESPACE = "https://tom-cad.dev/ns/texttocad-urdf/1";
+const LEGACY_VIEWER_URDF_NAMESPACE = "https://tom-cad.dev/ns/viewer-urdf/1";
 
 function childElementsByTag(parent, tagName) {
   return Array.from(parent?.childNodes || []).filter((node) => node?.nodeType === 1 && node.tagName === tagName);
+}
+
+function childElementsByTextToCadTag(parent, localName) {
+  return Array.from(parent?.childNodes || []).filter((node) => {
+    if (node?.nodeType !== 1) {
+      return false;
+    }
+    if (node.tagName === `texttocad:${localName}` || node.tagName === `viewer:${localName}`) {
+      return true;
+    }
+    return node.localName === localName && (
+      node.namespaceURI === TEXTTOCAD_URDF_NAMESPACE ||
+      node.namespaceURI === LEGACY_VIEWER_URDF_NAMESPACE
+    );
+  });
 }
 
 function parseNumberList(value, count, fallback) {
@@ -156,13 +173,36 @@ function parseJointDefaultValueDeg(jointElement, jointName) {
   return parsedValue;
 }
 
+function parseJointMimic(jointElement, jointName) {
+  const mimicElement = childElementsByTag(jointElement, "mimic")[0];
+  if (!mimicElement) {
+    return null;
+  }
+  const joint = String(mimicElement.getAttribute("joint") || "").trim();
+  if (!joint) {
+    throw new Error(`URDF mimic joint ${jointName} must reference another joint`);
+  }
+  const multiplierText = String(mimicElement.getAttribute("multiplier") ?? "1").trim() || "1";
+  const offsetText = String(mimicElement.getAttribute("offset") ?? "0").trim() || "0";
+  const multiplier = Number(multiplierText);
+  const offset = Number(offsetText);
+  if (!Number.isFinite(multiplier) || !Number.isFinite(offset)) {
+    throw new Error(`URDF mimic joint ${jointName} has invalid multiplier or offset`);
+  }
+  return {
+    joint,
+    multiplier,
+    offset
+  };
+}
+
 function parseJoint(jointElement, linkNames) {
   const name = String(jointElement.getAttribute("name") || "").trim();
   if (!name) {
     throw new Error("URDF joint name is required");
   }
   const type = String(jointElement.getAttribute("type") || "").trim().toLowerCase();
-  if (!["fixed", "continuous", "revolute"].includes(type)) {
+  if (!["fixed", "continuous", "revolute", "prismatic"].includes(type)) {
     throw new Error(`Unsupported URDF joint type: ${type || "(missing)"}`);
   }
   const parentElement = childElementsByTag(jointElement, "parent")[0];
@@ -183,18 +223,23 @@ function parseJoint(jointElement, linkNames) {
   if (type === "continuous") {
     minValueDeg = -180;
     maxValueDeg = 180;
-  } else if (type === "revolute") {
+  } else if (type === "revolute" || type === "prismatic") {
     const limitElement = childElementsByTag(jointElement, "limit")[0];
     if (!limitElement) {
-      throw new Error(`URDF revolute joint ${name} requires <limit>`);
+      throw new Error(`URDF ${type} joint ${name} requires <limit>`);
     }
     const lower = Number(limitElement.getAttribute("lower"));
     const upper = Number(limitElement.getAttribute("upper"));
     if (!Number.isFinite(lower) || !Number.isFinite(upper)) {
-      throw new Error(`URDF revolute joint ${name} has invalid limits`);
+      throw new Error(`URDF ${type} joint ${name} has invalid limits`);
     }
-    minValueDeg = (lower * 180) / Math.PI;
-    maxValueDeg = (upper * 180) / Math.PI;
+    if (type === "revolute") {
+      minValueDeg = (lower * 180) / Math.PI;
+      maxValueDeg = (upper * 180) / Math.PI;
+    } else {
+      minValueDeg = lower;
+      maxValueDeg = upper;
+    }
   }
   return {
     name,
@@ -205,8 +250,102 @@ function parseJoint(jointElement, linkNames) {
     axis,
     defaultValueDeg: type === "fixed" ? 0 : parseJointDefaultValueDeg(jointElement, name),
     minValueDeg,
-    maxValueDeg
+    maxValueDeg,
+    mimic: parseJointMimic(jointElement, name)
   };
+}
+
+function parseViewerJointPoseValue(jointElement, { poseName, jointName, joint }) {
+  const rawValue = String(jointElement.getAttribute("value") || "").trim();
+  if (!rawValue) {
+    throw new Error(`Viewer pose ${poseName} joint ${jointName} is missing value`);
+  }
+  const parsedValue = Number(rawValue);
+  if (!Number.isFinite(parsedValue)) {
+    throw new Error(`Viewer pose ${poseName} joint ${jointName} has invalid value ${JSON.stringify(rawValue)}`);
+  }
+  const jointType = String(joint?.type || "fixed");
+  if (jointType === "fixed") {
+    throw new Error(`Viewer pose ${poseName} joint ${jointName} must target a movable joint`);
+  }
+  if (joint?.mimic) {
+    throw new Error(`Viewer pose ${poseName} joint ${jointName} must target a non-mimic joint`);
+  }
+  if (jointType !== "continuous") {
+    const minValue = Number(joint?.minValueDeg);
+    const maxValue = Number(joint?.maxValueDeg);
+    if (
+      Number.isFinite(minValue) &&
+      Number.isFinite(maxValue) &&
+      (parsedValue < Math.min(minValue, maxValue) || parsedValue > Math.max(minValue, maxValue))
+    ) {
+      throw new Error(`Viewer pose ${poseName} joint ${jointName} must stay within joint limits`);
+    }
+  }
+  return parsedValue;
+}
+
+function parseViewerPoses(robotElement, joints) {
+  const posesElement = childElementsByTextToCadTag(robotElement, "poses")[0];
+  if (!posesElement) {
+    return [];
+  }
+  const jointByName = new Map(joints.map((joint) => [String(joint?.name || ""), joint]).filter(([name]) => name));
+  const poseNames = new Set();
+  return childElementsByTextToCadTag(posesElement, "pose").map((poseElement) => {
+    const poseName = String(poseElement.getAttribute("name") || "").trim();
+    if (!poseName) {
+      throw new Error("Viewer pose name is required");
+    }
+    if (poseNames.has(poseName)) {
+      throw new Error(`Duplicate viewer pose name: ${poseName}`);
+    }
+    poseNames.add(poseName);
+
+    const jointValuesByName = {};
+    for (const jointElement of childElementsByTextToCadTag(poseElement, "joint")) {
+      const jointName = String(jointElement.getAttribute("name") || "").trim();
+      if (!jointName) {
+        throw new Error(`Viewer pose ${poseName} joint name is required`);
+      }
+      if (Object.hasOwn(jointValuesByName, jointName)) {
+        throw new Error(`Viewer pose ${poseName} references joint ${jointName} multiple times`);
+      }
+      const joint = jointByName.get(jointName);
+      if (!joint) {
+        throw new Error(`Viewer pose ${poseName} references missing joint ${jointName}`);
+      }
+      jointValuesByName[jointName] = parseViewerJointPoseValue(
+        jointElement,
+        {
+          poseName,
+          jointName,
+          joint
+        }
+      );
+    }
+
+    if (!Object.keys(jointValuesByName).length) {
+      throw new Error(`Viewer pose ${poseName} must define at least one joint value`);
+    }
+
+    return {
+      name: poseName,
+      jointValuesByName
+    };
+  });
+}
+
+function validateMimicJoints(joints) {
+  const jointNames = new Set(joints.map((joint) => joint.name));
+  for (const joint of joints) {
+    if (!joint.mimic) {
+      continue;
+    }
+    if (!jointNames.has(joint.mimic.joint)) {
+      throw new Error(`URDF mimic joint ${joint.name} references missing joint ${joint.mimic.joint}`);
+    }
+  }
 }
 
 function validateTree(links, joints) {
@@ -319,13 +458,16 @@ export function parseUrdf(xmlText, { sourceUrl } = {}) {
   }
 
   const joints = childElementsByTag(robot, "joint").map((jointElement) => parseJoint(jointElement, linkNames));
+  validateMimicJoints(joints);
   const rootLink = validateTree(links, joints);
+  const poses = parseViewerPoses(robot, joints);
 
   return {
     robotName,
     rootLink,
     rootWorldTransform: [...IDENTITY_TRANSFORM],
     links,
-    joints
+    joints,
+    poses
   };
 }

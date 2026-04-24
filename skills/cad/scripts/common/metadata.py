@@ -56,6 +56,7 @@ class StepEnvelopeMetadata:
 STEP_ENVELOPE_FIELDS = {
     "shape",
     "instances",
+    "children",
     "step_output",
     "stl_output",
     "export_stl",
@@ -269,10 +270,17 @@ def _parse_step_envelope_metadata(
     )
     has_shape = "shape" in envelope
     has_instances = "instances" in envelope
-    if has_shape == has_instances:
+    has_children = "children" in envelope
+    has_assembly = has_instances or has_children
+    if has_instances and has_children:
+        raise ValueError(
+            f"{script_path.relative_to(REPO_ROOT)} gen_step() envelope must define only one of "
+            "'instances' or 'children'"
+        )
+    if has_shape == has_assembly:
         raise ValueError(
             f"{script_path.relative_to(REPO_ROOT)} gen_step() envelope must define exactly one of "
-            "'shape' or 'instances'"
+            "'shape', 'instances', or 'children'"
         )
     kind = "part" if has_shape else "assembly"
     export_stl = _parse_bool_field(

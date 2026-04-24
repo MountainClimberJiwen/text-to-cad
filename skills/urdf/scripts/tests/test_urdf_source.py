@@ -149,7 +149,7 @@ class UrdfSourceTests(unittest.TestCase):
         with self.assertRaisesRegex(UrdfSourceError, "missing mesh file"):
             read_urdf_source(source_path)
 
-    def test_read_urdf_source_rejects_unsupported_joint_type(self) -> None:
+    def test_read_urdf_source_accepts_prismatic_joint_with_limits(self) -> None:
         mesh_path = self._write_mesh("base")
         source_path = self._write_urdf(
             "robot",
@@ -164,6 +164,35 @@ class UrdfSourceTests(unittest.TestCase):
               </link>
               <link name="arm_link" />
               <joint name="base_to_arm" type="prismatic">
+                <parent link="base_link" />
+                <child link="arm_link" />
+                <limit lower="0" upper="0.05" effort="1" velocity="1" />
+              </joint>
+            </robot>
+            """,
+        )
+
+        source = read_urdf_source(source_path)
+
+        self.assertEqual("prismatic", source.joints[0].joint_type)
+        self.assertEqual(0.0, source.joints[0].min_value_deg)
+        self.assertEqual(0.05, source.joints[0].max_value_deg)
+
+    def test_read_urdf_source_rejects_unsupported_joint_type(self) -> None:
+        mesh_path = self._write_mesh("base")
+        source_path = self._write_urdf(
+            "robot",
+            f"""
+            <robot name="sample-robot">
+              <link name="base_link">
+                <visual>
+                  <geometry>
+                    <mesh filename="{mesh_path.name}" />
+                  </geometry>
+                </visual>
+              </link>
+              <link name="arm_link" />
+              <joint name="base_to_arm" type="planar">
                 <parent link="base_link" />
                 <child link="arm_link" />
               </joint>

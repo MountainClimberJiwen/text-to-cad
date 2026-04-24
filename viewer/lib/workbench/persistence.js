@@ -1,6 +1,5 @@
 import { clonePerspectiveSnapshot, perspectiveSnapshotEqual } from "../perspective.js";
 import {
-  DEFAULT_CAD_WORKSPACE_GLASS_TONE,
   cloneLookSettings,
   DEFAULT_LOOK_SETTINGS,
   normalizeLookSettings
@@ -379,6 +378,11 @@ const GLOBAL_STATE_SCHEMA = [
     key: "tabToolsWidth",
     defaultValue: CAD_WORKSPACE_DEFAULT_TAB_TOOLS_WIDTH,
     normalize: (value) => normalizeNumber(value, CAD_WORKSPACE_DEFAULT_TAB_TOOLS_WIDTH)
+  },
+  {
+    key: "urdfEntryAnimationEnabled",
+    defaultValue: true,
+    normalize: (value) => normalizeBoolean(value, true)
   }
 ];
 
@@ -588,17 +592,13 @@ export function writeLookSettings(lookSettings, options = {}) {
   );
 }
 
-export function normalizeCadWorkspaceGlassTone(value, fallback = DEFAULT_CAD_WORKSPACE_GLASS_TONE) {
-  const normalized = String(value || "").trim().toLowerCase();
-  if (normalized === "dark" || normalized === "light") {
-    return normalized;
-  }
-  return fallback;
+export function normalizeCadWorkspaceGlassTone(value) {
+  return String(value || "").trim().toLowerCase() === "dark" ? "dark" : "light";
 }
 
 export function readCadWorkspaceGlassTone() {
   if (typeof window === "undefined") {
-    return DEFAULT_CAD_WORKSPACE_GLASS_TONE;
+    return "light";
   }
   return normalizeCadWorkspaceGlassTone(window.localStorage.getItem(CAD_WORKSPACE_GLASS_TONE_STORAGE_KEY));
 }
@@ -772,7 +772,8 @@ export function buildCadWorkspaceSessionState(source = {}, { validEntryKeys, loc
     expandedDirectoryIds: globalState.expandedDirectoryIds,
     sidebarOpen: globalState.sidebarOpen,
     sidebarWidth: globalState.sidebarWidth,
-    tabToolsWidth: globalState.tabToolsWidth
+    tabToolsWidth: globalState.tabToolsWidth,
+    urdfEntryAnimationEnabled: globalState.urdfEntryAnimationEnabled
   };
 }
 

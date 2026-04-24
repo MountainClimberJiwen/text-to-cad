@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeftRight, ArrowRight, Circle, Eraser, Minus, PaintBucket, PenTool, Square } from "lucide-react";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import CadRenderPane from "./workbench/CadRenderPane";
@@ -27,7 +27,6 @@ import {
 } from "../lib/themes";
 import {
   cloneLookSettings,
-  DEFAULT_CAD_WORKSPACE_GLASS_TONE,
   DEFAULT_LOOK_SETTINGS,
   normalizeLookSettings
 } from "../lib/lookSettings";
@@ -92,13 +91,20 @@ import {
   clampJointValueDeg,
   poseUrdfMeshData
 } from "../lib/urdf/kinematics";
+import {
+  advanceUrdfJointValues,
+  jointValueMapsClose,
+  URDF_JOINT_ANIMATION_FOLLOW_MS
+} from "../lib/urdf/jointAnimation";
 import { buildSelectorRuntime } from "../lib/selectors/runtime";
 import {
   assemblyBreadcrumb,
+  buildAssemblyLeafToNodePickMap,
   descendantLeafPartIds,
   findAssemblyNode,
   flattenAssemblyNodes,
-  flattenAssemblyLeafParts
+  flattenAssemblyLeafParts,
+  representativeAssemblyLeafPartId
 } from "../lib/assembly/meshData";
 import { copyTextToClipboard } from "../lib/clipboard";
 
@@ -110,6 +116,12 @@ const CAD_BUILD_COMMANDS = {
   stepPart: "python skills/cad/scripts/gen_step_part",
   urdf: "python skills/urdf/scripts/gen_urdf"
 };
+const DEFAULT_URDF_ANIMATION_SETTINGS = Object.freeze({
+  introEnabled: true,
+  speed: 1
+});
+const MIN_URDF_ANIMATION_SPEED = 0.25;
+const MAX_URDF_ANIMATION_SPEED = 2.5;
 const DESKTOP_SIDEBAR_MIN_WIDTH = 144;
 const DESKTOP_SIDEBAR_MAX_WIDTH = 520;
 const DEFAULT_SIDEBAR_WIDTH = CAD_WORKSPACE_DEFAULT_SIDEBAR_WIDTH;
@@ -127,6 +139,194 @@ function clampPanelWidth(value, minWidth, maxWidth) {
 function toFiniteNumber(value, fallback = 0) {
   const numericValue = Number(value);
   return Number.isFinite(numericValue) ? numericValue : fallback;
+}
+
+function animationNowMs() {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+  return Date.now();
+}
+
+function cloneJointValueMap(values) {
+  if (!values || typeof values !== "object") {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(values)
+      .map(([name, value]) => [String(name || "").trim(), toFiniteNumber(value, 0)])
+      .filter(([name]) => name)
+  );
+}
+
+function roundedUrdfJointValue(value) {
+  const numericValue = toFiniteNumber(value, 0);
+  const rounded = Math.round(numericValue * 1000) / 1000;
+  return Object.is(rounded, -0) ? 0 : rounded;
+}
+
+function normalizeUrdfIntroAnimationEnabled(value) {
+  return value === true;
+}
+
+function normalizeUrdfAnimationSpeed(value, fallback = DEFAULT_URDF_ANIMATION_SETTINGS.speed) {
+  const numericValue = toFiniteNumber(value, fallback);
+  return Math.min(Math.max(numericValue, MIN_URDF_ANIMATION_SPEED), MAX_URDF_ANIMATION_SPEED);
+}
+
+function buildUrdfJointAnglesCopyText(joints, jointValues) {
+  const movableJoints = Array.isArray(joints) ? joints : [];
+  return JSON.stringify(
+    Object.fromEntries(
+      movableJoints.map((joint) => {
+        const jointName = String(joint?.name || "").trim();
+        const value = roundedUrdfJointValue(jointValues?.[jointName] ?? joint?.defaultValueDeg ?? 0);
+        return [jointName, value];
+      }).filter(([name]) => name)
+    ),
+    null,
+    2
+  );
+}
+
+function buildUrdfLinkIntroOrderMap(urdfData) {
+  const orderByLink = new Map();
+  const rootLink = String(urdfData?.rootLink || "").trim();
+  if (rootLink) {
+    orderByLink.set(rootLink, 0);
+  }
+  const joints = Array.isArray(urdfData?.joints) ? urdfData.joints : [];
+  joints.forEach((joint, index) => {
+    const parentLink = String(joint?.parentLink || "").trim();
+    const childLink = String(joint?.childLink || "").trim();
+    if (!childLink) {
+      return;
+    }
+    const parentOrder = orderByLink.get(parentLink);
+    const introOrder = Number.isFinite(parentOrder) ? parentOrder + 1 : index + 1;
+    orderByLink.set(childLink, introOrder);
+  });
+  return orderByLink;
+}
+
+function buildUrdfWrappedJointNameSet(urdfData) {
+  return new Set(
+    (Array.isArray(urdfData?.joints) ? urdfData.joints : [])
+      .filter((joint) => String(joint?.type || "").trim().toLowerCase() === "continuous")
+      .map((joint) => String(joint?.name || "").trim())
+      .filter(Boolean)
+  );
+}
+
+function useAnimatedUrdfJointValues(
+  targetValues,
+  animationKey,
+  animationSettings = DEFAULT_URDF_ANIMATION_SETTINGS,
+  wrappedJointNames = null
+) {
+  const initialAnimationKey = String(animationKey || "");
+  const [displayValues, setDisplayValues] = useState(() => cloneJointValueMap(targetValues));
+  const displayValuesRef = useRef(displayValues);
+  const targetValuesRef = useRef(cloneJointValueMap(targetValues));
+  const animationRef = useRef({
+    frameId: 0,
+    key: initialAnimationKey,
+    lastTimestamp: 0
+  });
+
+  useEffect(() => {
+    displayValuesRef.current = displayValues;
+  }, [displayValues]);
+
+  const animationSpeed = normalizeUrdfAnimationSpeed(animationSettings?.speed);
+
+  const cancelAnimation = () => {
+    if (animationRef.current.frameId && typeof cancelAnimationFrame === "function") {
+      cancelAnimationFrame(animationRef.current.frameId);
+    }
+    animationRef.current.frameId = 0;
+    animationRef.current.lastTimestamp = 0;
+  };
+
+  const snapToTarget = (targetSnapshot) => {
+    displayValuesRef.current = targetSnapshot;
+    setDisplayValues(targetSnapshot);
+  };
+
+  const scheduleAnimation = (key) => {
+    if (animationRef.current.frameId || typeof requestAnimationFrame !== "function") {
+      return;
+    }
+
+    const stepAnimation = (timestamp) => {
+      if (animationRef.current.key !== key) {
+        animationRef.current.frameId = 0;
+        animationRef.current.lastTimestamp = 0;
+        return;
+      }
+
+      const timestampMs = toFiniteNumber(timestamp, animationNowMs());
+      const lastTimestamp = animationRef.current.lastTimestamp || Math.max(timestampMs - 16, 0);
+      const deltaMs = Math.min(Math.max(timestampMs - lastTimestamp, 0), 50);
+      animationRef.current.lastTimestamp = timestampMs;
+
+      const { values, done } = advanceUrdfJointValues(
+        displayValuesRef.current,
+        targetValuesRef.current,
+        deltaMs,
+        URDF_JOINT_ANIMATION_FOLLOW_MS / animationSpeed,
+        undefined,
+        wrappedJointNames
+      );
+      displayValuesRef.current = values;
+      setDisplayValues(values);
+
+      if (done) {
+        animationRef.current.frameId = 0;
+        animationRef.current.lastTimestamp = 0;
+        return;
+      }
+
+      animationRef.current.frameId = requestAnimationFrame(stepAnimation);
+    };
+
+    animationRef.current.frameId = requestAnimationFrame(stepAnimation);
+  };
+
+  useEffect(() => {
+    const nextKey = String(animationKey || "");
+    const targetSnapshot = cloneJointValueMap(targetValues);
+    const keyChanged = animationRef.current.key !== nextKey;
+    targetValuesRef.current = targetSnapshot;
+
+    if (keyChanged) {
+      cancelAnimation();
+      animationRef.current.key = nextKey;
+      snapToTarget(targetSnapshot);
+      return undefined;
+    }
+
+    if (!nextKey || typeof requestAnimationFrame !== "function") {
+      cancelAnimation();
+      snapToTarget(targetSnapshot);
+      return undefined;
+    }
+
+    if (jointValueMapsClose(displayValuesRef.current, targetSnapshot)) {
+      cancelAnimation();
+      snapToTarget(targetSnapshot);
+      return undefined;
+    }
+
+    scheduleAnimation(nextKey);
+    return undefined;
+  }, [animationKey, animationSpeed, targetValues, wrappedJointNames]);
+
+  useEffect(() => () => {
+    cancelAnimation();
+  }, []);
+
+  return displayValues;
 }
 
 function meshAssetKeyForEntry(entry) {
@@ -455,13 +655,14 @@ function buildAssemblyPartCopyText(part, entry) {
   }
 
   const partId = String(part?.id || "").trim();
-  if (!partId) {
+  const selector = String(part?.occurrenceId || partId).trim();
+  if (!partId || !selector) {
     return "";
   }
   const partName = String(part?.name || partId).trim() || partId;
   return `${buildCadRefToken({
     cadPath,
-    selector: partId
+    selector
   })} Assembly part "${partName}"`;
 }
 
@@ -676,14 +877,16 @@ function buildAssemblyPartSelectorMap(parts, cadPath) {
   const map = new Map();
   for (const part of Array.isArray(parts) ? parts : []) {
     const partId = String(part?.id || "").trim();
-    if (!partId) {
+    const selector = String(part?.occurrenceId || partId).trim();
+    if (!partId || !selector) {
       continue;
     }
     const copyText = buildCadRefToken({
       cadPath,
-      selector: partId
+      selector
     });
     addTokenSelectorsToMap(map, copyText, partId, cadPath);
+    addTokenSelectorsToMap(map, selector, partId, cadPath);
   }
   return map;
 }
@@ -849,6 +1052,7 @@ export default function CadWorkspace({
   const [hoveredListReferenceId, setHoveredListReferenceId] = useState("");
   const [hoveredModelReferenceId, setHoveredModelReferenceId] = useState("");
   const [selectedPartIds, setSelectedPartIds] = useState([]);
+  const [selectedRenderPartIdByAssemblyPartId, setSelectedRenderPartIdByAssemblyPartId] = useState({});
   const [selectedWholeEntryCadRefToken, setSelectedWholeEntryCadRefToken] = useState("");
   const [expandedAssemblyPartIds, setExpandedAssemblyPartIds] = useState([]);
   const [hiddenPartIds, setHiddenPartIds] = useState([]);
@@ -877,6 +1081,9 @@ export default function CadWorkspace({
   const [drawingUndoStack, setDrawingUndoStack] = useState([]);
   const [drawingRedoStack, setDrawingRedoStack] = useState([]);
   const [jointValuesByFileRef, setJointValuesByFileRef] = useState({});
+  const [urdfAnimationSettingsByFileRef, setUrdfAnimationSettingsByFileRef] = useState({});
+  const [urdfEntryAnimationEnabled, setUrdfEntryAnimationEnabled] = useState(DEFAULT_URDF_ANIMATION_SETTINGS.introEnabled);
+  const [selectedUrdfIntroReplayToken, setSelectedUrdfIntroReplayToken] = useState(0);
   const [pendingCadRefQueryParams, setPendingCadRefQueryParams] = useState(() => readCadRefQueryParams());
   const [inspectedAssemblyReferenceState, setInspectedAssemblyReferenceState] = useState(null);
   const [, setInspectedAssemblyReferenceStatus] = useState(REFERENCE_STATUS.IDLE);
@@ -903,6 +1110,8 @@ export default function CadWorkspace({
   const {
     meshState,
     setMeshState,
+    meshLoadInProgress,
+    meshLoadTargetFile,
     status,
     setStatus,
     error,
@@ -986,6 +1195,18 @@ export default function CadWorkspace({
     !!selectedEntry &&
     meshState.file === fileKey(selectedEntry) &&
     meshState.meshHash === selectedMeshHash;
+  const selectedAssemblyStructureReady =
+    selectedEntry?.kind === "assembly" &&
+    selectedMeshMatches &&
+    !!meshState?.assemblyStructureReady;
+  const selectedAssemblyInteractionReady =
+    selectedEntry?.kind === "assembly" &&
+    selectedMeshMatches &&
+    !!meshState?.assemblyInteractionReady;
+  const selectedAssemblyHydrationFailed =
+    selectedEntry?.kind === "assembly" &&
+    selectedMeshMatches &&
+    !!meshState?.assemblyBackgroundError;
   const selectedDxfMatches =
     !!dxfState &&
     !!selectedEntry &&
@@ -1020,7 +1241,51 @@ export default function CadWorkspace({
     () => ({ ...defaultSelectedUrdfJointValues, ...storedSelectedUrdfJointValues }),
     [defaultSelectedUrdfJointValues, storedSelectedUrdfJointValues]
   );
-  const deferredSelectedUrdfJointValues = useDeferredValue(selectedUrdfJointValues);
+  const selectedUrdfAnimationSettings = useMemo(() => {
+    return {
+      introEnabled: normalizeUrdfIntroAnimationEnabled(urdfEntryAnimationEnabled),
+      speed: selectedUrdfFileRef
+        ? normalizeUrdfAnimationSpeed(urdfAnimationSettingsByFileRef?.[selectedUrdfFileRef]?.speed)
+        : DEFAULT_URDF_ANIMATION_SETTINGS.speed
+    };
+  }, [selectedUrdfFileRef, urdfAnimationSettingsByFileRef, urdfEntryAnimationEnabled]);
+  const selectedUrdfPoses = useMemo(
+    () => (
+      Array.isArray(selectedUrdfData?.poses)
+        ? selectedUrdfData.poses.map((pose) => ({
+          ...pose,
+          resolvedJointValues: {
+            ...defaultSelectedUrdfJointValues,
+            ...(pose?.jointValuesByName && typeof pose.jointValuesByName === "object" ? pose.jointValuesByName : {})
+          }
+        }))
+        : []
+    ),
+    [defaultSelectedUrdfJointValues, selectedUrdfData]
+  );
+  const activeSelectedUrdfPoseName = useMemo(
+    () => (
+      selectedUrdfPoses.find((pose) => jointValueMapsClose(selectedUrdfJointValues, pose.resolvedJointValues))?.name || ""
+    ),
+    [selectedUrdfJointValues, selectedUrdfPoses]
+  );
+  const selectedUrdfAnimationKey = selectedUrdfFileRef
+    ? `${selectedUrdfFileRef}:${entryAssetHash(selectedEntry, "urdf") || ""}`
+    : "";
+  const selectedUrdfIntroOrderByLink = useMemo(
+    () => buildUrdfLinkIntroOrderMap(selectedUrdfData),
+    [selectedUrdfData]
+  );
+  const selectedUrdfWrappedJointNames = useMemo(
+    () => buildUrdfWrappedJointNameSet(selectedUrdfData),
+    [selectedUrdfData]
+  );
+  const animatedSelectedUrdfJointValues = useAnimatedUrdfJointValues(
+    selectedUrdfJointValues,
+    selectedUrdfAnimationKey,
+    selectedUrdfAnimationSettings,
+    selectedUrdfWrappedJointNames
+  );
   const selectedUrdfMeshGeometryResult = useMemo(() => {
     if (!selectedUrdfData || !selectedUrdfMeshes) {
       return {
@@ -1041,7 +1306,11 @@ export default function CadWorkspace({
     }
   }, [selectedUrdfData, selectedUrdfMeshes]);
   const movableUrdfJoints = useMemo(
-    () => (Array.isArray(selectedUrdfData?.joints) ? selectedUrdfData.joints.filter((joint) => String(joint?.type || "") !== "fixed") : []),
+    () => (
+      Array.isArray(selectedUrdfData?.joints)
+        ? selectedUrdfData.joints.filter((joint) => String(joint?.type || "") !== "fixed" && !joint?.mimic)
+        : []
+    ),
     [selectedUrdfData]
   );
   const selectedUrdfPreview = useMemo(() => {
@@ -1056,9 +1325,12 @@ export default function CadWorkspace({
       const posedPreview = poseUrdfMeshData(
         selectedUrdfData,
         selectedUrdfMeshGeometryResult.meshData,
-        deferredSelectedUrdfJointValues
+        animatedSelectedUrdfJointValues
       );
-      selectedUrdfMeshGeometryResult.meshData.parts = posedPreview.meshData.parts;
+      selectedUrdfMeshGeometryResult.meshData.parts = posedPreview.meshData.parts.map((part) => ({
+        ...part,
+        introOrder: selectedUrdfIntroOrderByLink.get(String(part?.linkName || "").trim()) ?? 0
+      }));
       selectedUrdfMeshGeometryResult.meshData.bounds = posedPreview.meshData.bounds;
       return {
         ...posedPreview,
@@ -1072,13 +1344,15 @@ export default function CadWorkspace({
         linkWorldTransforms: new Map()
       };
     }
-  }, [deferredSelectedUrdfJointValues, selectedUrdfData, selectedUrdfMeshGeometryResult]);
+  }, [animatedSelectedUrdfJointValues, selectedUrdfData, selectedUrdfIntroOrderByLink, selectedUrdfMeshGeometryResult]);
   const selectedMeshData = selectedEntrySourceFormat === RENDER_FORMAT.URDF
     ? selectedUrdfPreview.meshData
     : selectedMeshMatches
       ? meshState.meshData
       : null;
-  const assemblyRoot = selectedMeshData?.assemblyRoot || null;
+  const assemblyRoot = selectedAssemblyStructureReady
+    ? selectedMeshData?.assemblyRoot || null
+    : null;
   const assemblyLeafParts = useMemo(() => {
     return Array.isArray(selectedMeshData?.parts) ? selectedMeshData.parts : flattenAssemblyLeafParts(assemblyRoot);
   }, [assemblyRoot, selectedMeshData?.parts]);
@@ -1100,7 +1374,10 @@ export default function CadWorkspace({
       }))
       : [];
   }, [assemblyCurrentNode]);
-  const assemblyPartsLoaded = Array.isArray(selectedMeshData?.parts) || Boolean(assemblyRoot);
+  const assemblyPickPartIdMap = useMemo(() => {
+    return buildAssemblyLeafToNodePickMap(assemblyParts);
+  }, [assemblyParts]);
+  const assemblyPartsLoaded = selectedAssemblyStructureReady;
   const supportsPartSelection = isAssemblyView && assemblyPartsLoaded && assemblyLeafParts.length > 0;
   const assemblyPartMap = useMemo(() => {
     const map = new Map();
@@ -1120,6 +1397,24 @@ export default function CadWorkspace({
     () => assemblyLeafParts.map((part) => String(part?.id || "").trim()).filter(Boolean),
     [assemblyLeafParts]
   );
+  const validAssemblyLeafIdSet = useMemo(
+    () => new Set(validAssemblyLeafIds),
+    [validAssemblyLeafIds]
+  );
+  const renderPartIdForAssemblySelection = useCallback((partId, fallbackPartId = "") => {
+    const normalizedFallbackPartId = String(fallbackPartId || "").trim();
+    if (normalizedFallbackPartId && validAssemblyLeafIdSet.has(normalizedFallbackPartId)) {
+      return normalizedFallbackPartId;
+    }
+    const normalizedPartId = String(partId || "").trim();
+    if (!normalizedPartId) {
+      return "";
+    }
+    if (validAssemblyLeafIdSet.has(normalizedPartId)) {
+      return normalizedPartId;
+    }
+    return representativeAssemblyLeafPartId(assemblyPartMap.get(normalizedPartId) || null);
+  }, [assemblyPartMap, validAssemblyLeafIdSet]);
   const selectedUrdfPreviewError = selectedUrdfPreview.error;
   const selectedDxfBendLines = useMemo(() => {
     if (!selectedDxfData) {
@@ -1211,6 +1506,11 @@ export default function CadWorkspace({
     : effectiveRenderFormat === RENDER_FORMAT.URDF
       ? urdfViewerLoading
       : stepViewerLoading;
+  const assemblySidebarLoading =
+    isAssemblyView &&
+    selectedMeshMatches &&
+    !assemblyPartsLoaded &&
+    !selectedAssemblyHydrationFailed;
   const viewerLoadingLabel = effectiveRenderFormat === RENDER_FORMAT.DXF
     ? selectedEntry && !selectedEntryHasDxf
       ? "Generating DXF preview..."
@@ -1358,7 +1658,6 @@ export default function CadWorkspace({
 
   const handleResetLookSettings = useCallback(() => {
     setLookSettings(cloneLookSettings(DEFAULT_LOOK_SETTINGS));
-    setCadWorkspaceGlassTone(DEFAULT_CAD_WORKSPACE_GLASS_TONE);
   }, []);
 
   const handleViewerAlertChange = useCallback((nextAlert) => {
@@ -1408,6 +1707,7 @@ export default function CadWorkspace({
     selectedReferenceIdsRef.current = [];
     setSelectedPartIds([]);
     setSelectedReferenceIds([]);
+    setSelectedRenderPartIdByAssemblyPartId({});
     setSelectedWholeEntryCadRefToken("");
     setHoveredListReferenceId("");
     setHoveredModelReferenceId("");
@@ -1490,7 +1790,8 @@ export default function CadWorkspace({
       expandedDirectoryIds: Array.from(expandedDirectoryIds),
       sidebarOpen,
       sidebarWidth,
-      tabToolsWidth
+      tabToolsWidth,
+      urdfEntryAnimationEnabled
     });
   }, [
     buildActiveTabSnapshot,
@@ -1501,6 +1802,7 @@ export default function CadWorkspace({
     sidebarOpen,
     sidebarWidth,
     tabToolsWidth,
+    urdfEntryAnimationEnabled,
     upsertTabRecord
   ]);
 
@@ -1560,6 +1862,7 @@ export default function CadWorkspace({
     setSelectedReferenceIds(nextTab.selectedReferenceIds);
     selectedPartIdsRef.current = nextTab.selectedPartIds;
     setSelectedPartIds(nextTab.selectedPartIds);
+    setSelectedRenderPartIdByAssemblyPartId({});
     setSelectedWholeEntryCadRefToken("");
     setExpandedAssemblyPartIds(nextTab.expandedAssemblyPartIds);
     setHiddenPartIds(nextTab.hiddenPartIds);
@@ -1590,6 +1893,7 @@ export default function CadWorkspace({
     setReferenceQuery("");
     setSelectedReferenceIds([]);
     setSelectedPartIds([]);
+    setSelectedRenderPartIdByAssemblyPartId({});
     setExpandedAssemblyPartIds([]);
     setHiddenPartIds([]);
     setHoveredListReferenceId("");
@@ -1713,6 +2017,7 @@ export default function CadWorkspace({
     setSidebarOpen,
     setSidebarWidth,
     setTabToolsWidth,
+    setUrdfEntryAnimationEnabled,
     setOpenTabs,
     applyTabRecord,
     selectedEntryKeyFromUrl,
@@ -2011,14 +2316,35 @@ export default function CadWorkspace({
       cancelMeshLoad();
       return;
     }
-    if (selectedMeshMatches) {
+    if (meshLoadInProgress && meshLoadTargetFile === fileKey(selectedEntry)) {
+      return;
+    }
+    if (
+      selectedMeshMatches &&
+      (
+        !isAssemblyView ||
+        selectedAssemblyInteractionReady ||
+        selectedAssemblyHydrationFailed
+      )
+    ) {
       return;
     }
     loadMeshForEntry(selectedEntry).catch((err) => {
       setStatus(ASSET_STATUS.ERROR);
       setError(err instanceof Error ? err.message : String(err));
     });
-  }, [cancelMeshLoad, effectiveRenderFormat, loadMeshForEntry, selectedEntry, selectedMeshMatches]);
+  }, [
+    cancelMeshLoad,
+    effectiveRenderFormat,
+    isAssemblyView,
+    loadMeshForEntry,
+    meshLoadInProgress,
+    meshLoadTargetFile,
+    selectedAssemblyHydrationFailed,
+    selectedAssemblyInteractionReady,
+    selectedEntry,
+    selectedMeshMatches
+  ]);
 
   useEffect(() => {
     if (!selectedEntry) {
@@ -2411,9 +2737,24 @@ export default function CadWorkspace({
       return selectedPartIds;
     }
     return uniqueStringList(
-      selectedPartIds.flatMap((id) => descendantLeafPartIds(assemblyPartMap.get(id) || null))
+      selectedPartIds.map((id) => renderPartIdForAssemblySelection(
+        id,
+        selectedRenderPartIdByAssemblyPartId[String(id || "").trim()]
+      ))
     );
-  }, [assemblyPartMap, isAssemblyView, isInspectingAssemblyPart, selectedPartIds]);
+  }, [
+    isAssemblyView,
+    isInspectingAssemblyPart,
+    renderPartIdForAssemblySelection,
+    selectedPartIds,
+    selectedRenderPartIdByAssemblyPartId
+  ]);
+  const viewerHoveredPartIds = useMemo(() => {
+    if (!isAssemblyView || isInspectingAssemblyPart || !hoveredPartId) {
+      return hoveredPartId;
+    }
+    return renderPartIdForAssemblySelection(hoveredPartId, hoveredPartId) || hoveredPartId;
+  }, [hoveredPartId, isAssemblyView, isInspectingAssemblyPart, renderPartIdForAssemblySelection]);
 
   const handleUrdfJointValueChange = useCallback((joint, nextValueDeg) => {
     const jointName = String(joint?.name || "").trim();
@@ -2450,6 +2791,64 @@ export default function CadWorkspace({
         return next;
       });
     });
+  }, [selectedUrdfFileRef]);
+  const handleSelectUrdfPose = useCallback((pose) => {
+    if (!selectedUrdfFileRef || !pose?.resolvedJointValues || typeof pose.resolvedJointValues !== "object") {
+      return;
+    }
+    const nextJointValues = cloneJointValueMap(pose.resolvedJointValues);
+    startTransition(() => {
+      setJointValuesByFileRef((current) => ({
+        ...current,
+        [selectedUrdfFileRef]: nextJointValues
+      }));
+    });
+  }, [selectedUrdfFileRef]);
+  const handleCopyUrdfJointAngles = useCallback(async () => {
+    setScreenshotStatus("");
+    if (!movableUrdfJoints.length) {
+      setCopyStatus("No movable joints are available");
+      return;
+    }
+    try {
+      await copyTextToClipboard(buildUrdfJointAnglesCopyText(movableUrdfJoints, selectedUrdfJointValues));
+      setCopyStatus("Copied joint angles");
+    } catch (error) {
+      setCopyStatus(error instanceof Error ? error.message : "Clipboard write failed");
+    }
+  }, [movableUrdfJoints, selectedUrdfJointValues]);
+  const handleUrdfIntroAnimationEnabledChange = useCallback((nextEnabled) => {
+    setUrdfEntryAnimationEnabled(normalizeUrdfIntroAnimationEnabled(nextEnabled));
+  }, []);
+  const handleReplayUrdfIntroAnimation = useCallback(() => {
+    if (!selectedUrdfFileRef) {
+      return;
+    }
+    startTransition(() => {
+      setSelectedUrdfIntroReplayToken((current) => current + 1);
+    });
+  }, [selectedUrdfFileRef]);
+  const handleUrdfAnimationSpeedChange = useCallback((nextSpeed) => {
+    if (!selectedUrdfFileRef) {
+      return;
+    }
+    const normalizedSpeed = normalizeUrdfAnimationSpeed(nextSpeed);
+    startTransition(() => {
+      setUrdfAnimationSettingsByFileRef((current) => ({
+        ...current,
+        [selectedUrdfFileRef]: {
+          ...DEFAULT_URDF_ANIMATION_SETTINGS,
+          ...(current?.[selectedUrdfFileRef] && typeof current[selectedUrdfFileRef] === "object"
+            ? current[selectedUrdfFileRef]
+            : {}),
+          speed: normalizedSpeed
+        }
+      }));
+    });
+  }, [selectedUrdfFileRef]);
+
+  useEffect(() => {
+    setSelectedUrdfIntroReplayToken(0);
   }, [selectedUrdfFileRef]);
   const copySelectionPayload = useMemo(() => {
     const selectedReferencesForCopy = selectedReferenceIds
@@ -2521,6 +2920,7 @@ export default function CadWorkspace({
       selectedPartIdsRef.current = resolvedSelection.selectedPartIds;
       setSelectedPartIds(resolvedSelection.selectedPartIds);
     }
+    setSelectedRenderPartIdByAssemblyPartId({});
     setSelectedWholeEntryCadRefToken(
       resolvedSelection.hasWholeEntryToken
         ? buildCadRefToken({ cadPath: cadPathForEntry(selectedEntry) })
@@ -2661,6 +3061,7 @@ export default function CadWorkspace({
     setSelectedWholeEntryCadRefToken("");
     selectedPartIdsRef.current = [];
     setSelectedPartIds([]);
+    setSelectedRenderPartIdByAssemblyPartId({});
     setHoveredListPartId("");
     setHoveredModelPartId("");
     resetReferenceInteractionState();
@@ -2690,10 +3091,11 @@ export default function CadWorkspace({
     setExpandedAssemblyPartIds([]);
   }, [resetReferenceInteractionState]);
 
-  const togglePartSelection = useCallback((partId, { multiSelect = false } = {}) => {
+  const togglePartSelection = useCallback((partId, { multiSelect = false, renderPartId = "" } = {}) => {
     if (stepUpdateInProgress) {
       return;
     }
+    const normalizedPartId = String(partId || "").trim();
     const next = computeNextSelectionIds(selectedPartIdsRef.current, partId, { multiSelect });
     if (next.length && !isDesktop) {
       setSidebarOpen(false);
@@ -2701,13 +3103,30 @@ export default function CadWorkspace({
     setSelectedWholeEntryCadRefToken("");
     selectedPartIdsRef.current = next;
     setSelectedPartIds(next);
-  }, [isDesktop, stepUpdateInProgress]);
+    setSelectedRenderPartIdByAssemblyPartId((current) => {
+      const nextMap = {};
+      for (const selectedPartId of next) {
+        const normalizedSelectedPartId = String(selectedPartId || "").trim();
+        if (!normalizedSelectedPartId) {
+          continue;
+        }
+        const selectedRenderPartId = normalizedSelectedPartId === normalizedPartId
+          ? renderPartIdForAssemblySelection(normalizedSelectedPartId, renderPartId)
+          : renderPartIdForAssemblySelection(normalizedSelectedPartId, current[normalizedSelectedPartId]);
+        if (selectedRenderPartId) {
+          nextMap[normalizedSelectedPartId] = selectedRenderPartId;
+        }
+      }
+      return nextMap;
+    });
+  }, [isDesktop, renderPartIdForAssemblySelection, stepUpdateInProgress]);
 
   const clearAssemblySelection = useCallback(() => {
     selectedPartIdsRef.current = [];
     selectedReferenceIdsRef.current = [];
     setSelectedWholeEntryCadRefToken("");
     setSelectedPartIds([]);
+    setSelectedRenderPartIdByAssemblyPartId({});
     setSelectedReferenceIds([]);
     setCopyStatus("");
   }, []);
@@ -2761,14 +3180,14 @@ export default function CadWorkspace({
 
   const handleModelHoverChange = useCallback((referenceId) => {
     if (viewerInAssemblyMode) {
-      const nextPartId = String(referenceId || "").trim();
-      if (!nextPartId) {
+      const pickedPartId = String(referenceId || "").trim();
+      if (!pickedPartId) {
         setHoveredModelReferenceId("");
         setHoveredModelPartId("");
         return;
       }
       setHoveredModelReferenceId("");
-      setHoveredModelPartId(nextPartId);
+      setHoveredModelPartId(pickedPartId);
       return;
     }
     const nextReferenceId = String(referenceId || "").trim();
@@ -2780,12 +3199,13 @@ export default function CadWorkspace({
       return;
     }
     if (viewerInAssemblyMode) {
-      const nextPartId = String(referenceId || "").trim();
+      const pickedPartId = String(referenceId || "").trim();
+      const nextPartId = assemblyPickPartIdMap.get(pickedPartId) || pickedPartId;
       if (!nextPartId) {
         clearAssemblySelection();
         return;
       }
-      togglePartSelection(nextPartId, { multiSelect });
+      togglePartSelection(nextPartId, { multiSelect, renderPartId: pickedPartId });
       return;
     }
     const nextReferenceId = String(referenceId || "").trim();
@@ -2801,6 +3221,7 @@ export default function CadWorkspace({
     clearAssemblySelection,
     clearReferenceSelection,
     effectiveActiveReferenceMap,
+    assemblyPickPartIdMap,
     stepUpdateInProgress,
     toggleReferenceSelection,
     togglePartSelection,
@@ -2808,7 +3229,8 @@ export default function CadWorkspace({
   ]);
 
   const handleModelReferenceDoubleActivate = useCallback((referenceId) => {
-    const nextPartId = String(referenceId || "").trim();
+    const pickedPartId = String(referenceId || "").trim();
+    const nextPartId = assemblyPickPartIdMap.get(pickedPartId) || pickedPartId;
 
     if (viewerInAssemblyMode) {
       if (!nextPartId) {
@@ -2828,6 +3250,7 @@ export default function CadWorkspace({
     handleInspectAssemblyPart,
     isAssemblyView,
     isInspectingAssemblyPart,
+    assemblyPickPartIdMap,
     viewerInAssemblyMode
   ]);
 
@@ -3113,10 +3536,10 @@ export default function CadWorkspace({
           stepUpdateInProgress={effectiveRenderFormat === RENDER_FORMAT.STEP && stepUpdateInProgress}
           viewPlaneOffsetRight={viewportFrameInsets.right + 16}
           viewerMode={viewerMode}
-          assemblyParts={isAssemblyView ? assemblyLeafParts : EMPTY_LIST}
+          assemblyParts={isAssemblyView && selectedAssemblyInteractionReady ? assemblyLeafParts : EMPTY_LIST}
           hiddenPartIds={hiddenPartIds}
           selectedPartIds={viewerSelectedPartIds}
-          hoveredPartId={hoveredPartId}
+          hoveredPartId={viewerHoveredPartIds}
           hoveredReferenceId={hoveredReferenceId}
           selectedReferenceIds={selectedReferenceIds}
           selectorRuntime={effectiveSelectorRuntime}
@@ -3137,6 +3560,11 @@ export default function CadWorkspace({
           copyButtonLabel={copyButtonLabel}
           handleCopySelection={handleCopySelection}
           handleScreenshotCopy={handleScreenshotCopy}
+          partIntroAnimation={isUrdfView ? {
+            enabled: selectedUrdfAnimationSettings.introEnabled,
+            introKey: selectedUrdfAnimationKey,
+            replayToken: selectedUrdfIntroReplayToken
+          } : null}
         />
       </div>
 
@@ -3211,7 +3639,6 @@ export default function CadWorkspace({
               <ViewerLoadingOverlay
                 viewerLoading={viewerLoading}
                 previewMode={previewMode}
-                viewerLoadingLabel={viewerLoadingLabel}
               />
             </div>
 
@@ -3238,7 +3665,7 @@ export default function CadWorkspace({
                 isDesktop={isDesktop}
                 width={DEFAULT_TAB_TOOLS_WIDTH}
                 selectedEntry={selectedEntry}
-                viewerLoading={viewerLoading}
+                viewerLoading={viewerLoading || assemblySidebarLoading}
                 isAssemblyView={isAssemblyView}
                 assemblyParts={assemblyParts}
                 assemblyBreadcrumbNodes={assemblyBreadcrumbNodes}
@@ -3266,8 +3693,17 @@ export default function CadWorkspace({
                 isDesktop={isDesktop}
                 width={DEFAULT_TAB_TOOLS_WIDTH}
                 joints={movableUrdfJoints}
+                poses={selectedUrdfPoses}
+                activePoseName={activeSelectedUrdfPoseName}
                 jointValues={selectedUrdfJointValues}
                 onJointValueChange={handleUrdfJointValueChange}
+                onPoseSelect={handleSelectUrdfPose}
+                onCopyJointAngles={handleCopyUrdfJointAngles}
+                introAnimationEnabled={selectedUrdfAnimationSettings.introEnabled}
+                animationSpeed={selectedUrdfAnimationSettings.speed}
+                onIntroAnimationEnabledChange={handleUrdfIntroAnimationEnabledChange}
+                onReplayIntroAnimation={handleReplayUrdfIntroAnimation}
+                onAnimationSpeedChange={handleUrdfAnimationSpeedChange}
                 onResetPose={handleResetUrdfPose}
               />
             ) : null}

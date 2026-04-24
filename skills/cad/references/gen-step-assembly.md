@@ -15,7 +15,7 @@ Targets must be explicit file paths:
 
 Relative targets resolve from the current working directory; `path/to/assembly.py` works only when that path exists from the current directory.
 
-Generated Python assembly sources must expose `gen_step()` returning an envelope with `instances` and `step_output`; see `references/generator-contract.md`.
+Generated Python assembly sources must expose `gen_step()` returning an envelope with either flat `instances` or recursive `children`, plus `step_output`; see `references/generator-contract.md`.
 
 Direct STEP/STP targets may use:
 

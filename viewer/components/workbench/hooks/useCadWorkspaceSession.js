@@ -47,6 +47,7 @@ export function useCadWorkspaceSession({
   setSidebarOpen,
   setSidebarWidth,
   setTabToolsWidth,
+  setUrdfEntryAnimationEnabled,
   setOpenTabs,
   applyTabRecord,
   selectedEntryKeyFromUrl,
@@ -102,6 +103,7 @@ export function useCadWorkspaceSession({
       setSidebarOpen(desktopViewport ? true : restoredSession.sidebarOpen);
       setSidebarWidth(restoredSession.sidebarWidth);
       setTabToolsWidth(restoredSession.tabToolsWidth);
+      setUrdfEntryAnimationEnabled(restoredSession.urdfEntryAnimationEnabled);
 
       const urlActiveTab = urlSelectedKey
         ? (
@@ -147,6 +149,7 @@ export function useCadWorkspaceSession({
     setSidebarOpen,
     setSidebarWidth,
     setTabToolsWidth,
+    setUrdfEntryAnimationEnabled,
     upsertTabRecord,
     initialSelectedTabSnapshot,
     cadWorkspaceSessionBootstrappedRef,

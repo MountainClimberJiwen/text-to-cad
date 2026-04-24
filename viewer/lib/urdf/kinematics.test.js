@@ -198,10 +198,68 @@ test("fixed joints do not create default controls or motion", () => {
 });
 
 test("joint clamping respects revolute and continuous limits", () => {
-  assert.equal(clampJointValueDeg(sampleUrdf().joints[0], 270), 180);
-  assert.equal(clampJointValueDeg(sampleUrdf().joints[0], -240), -180);
+  assert.equal(clampJointValueDeg(sampleUrdf().joints[0], 270), 270);
+  assert.equal(clampJointValueDeg(sampleUrdf().joints[0], -240), -240);
   assert.equal(clampJointValueDeg(sampleUrdf().joints[2], 90), 60);
   assert.equal(clampJointValueDeg(sampleUrdf().joints[2], -90), -45);
+});
+
+test("prismatic mimic joints follow a revolute master in native URDF units", () => {
+  const urdf = {
+    rootLink: "base_link",
+    rootWorldTransform: translationTransform(0, 0, 0),
+    links: [
+      { name: "base_link", visuals: [] },
+      { name: "servo_link", visuals: [] },
+      { name: "right_claw", visuals: [] },
+      { name: "left_claw", visuals: [] }
+    ],
+    joints: [
+      {
+        name: "gripper_servo",
+        type: "revolute",
+        parentLink: "base_link",
+        childLink: "servo_link",
+        originTransform: translationTransform(0, 0, 0),
+        axisInJointFrame: [0, 0, 1],
+        defaultValueDeg: 0,
+        minValueDeg: 0,
+        maxValueDeg: 180
+      },
+      {
+        name: "right_slide",
+        type: "prismatic",
+        parentLink: "base_link",
+        childLink: "right_claw",
+        originTransform: translationTransform(0, 0, 0),
+        axisInJointFrame: [-1, 0, 0],
+        defaultValueDeg: 0,
+        minValueDeg: 0,
+        maxValueDeg: 0.05,
+        mimic: { joint: "gripper_servo", multiplier: 0.01, offset: 0 }
+      },
+      {
+        name: "left_slide",
+        type: "prismatic",
+        parentLink: "base_link",
+        childLink: "left_claw",
+        originTransform: translationTransform(0, 0, 0),
+        axisInJointFrame: [1, 0, 0],
+        defaultValueDeg: 0,
+        minValueDeg: 0,
+        maxValueDeg: 0.05,
+        mimic: { joint: "gripper_servo", multiplier: 0.01, offset: 0 }
+      }
+    ]
+  };
+
+  const defaults = buildDefaultUrdfJointValues(urdf);
+  const linkWorldTransforms = solveUrdfLinkWorldTransforms(urdf, { gripper_servo: 90 });
+  const travel = Math.round(((Math.PI / 2) * 0.01) * 1000000) / 1000000;
+
+  assert.deepEqual(Object.keys(defaults), ["gripper_servo"]);
+  assert.deepEqual(rounded(transformPoint(linkWorldTransforms.get("right_claw"), [0, 0, 0])), rounded([-travel, 0, 0]));
+  assert.deepEqual(rounded(transformPoint(linkWorldTransforms.get("left_claw"), [0, 0, 0])), rounded([travel, 0, 0]));
 });
 
 test("joint origin rotation reorients the motion axis from joint frame into parent space", () => {
@@ -304,4 +362,49 @@ test("URDF mesh data preserves mesh source colors when visuals omit material col
     Array.from(meshGeometry.colors.slice(9, 18)),
     [0.25, 0.5, 0.75, 0.25, 0.5, 0.75, 0.25, 0.5, 0.75]
   );
+});
+
+test("URDF mesh data marks uncolored visuals for default viewer color", () => {
+  const urdfData = {
+    rootLink: "base_link",
+    rootWorldTransform: translationTransform(0, 0, 0),
+    links: [
+      {
+        name: "base_link",
+        visuals: [
+          {
+            id: "base_link:motor",
+            label: "motor",
+            partFileRef: "motor-part",
+            color: "#2b2f33",
+            localTransform: translationTransform(0, 0, 0)
+          },
+          {
+            id: "base_link:default",
+            label: "default",
+            partFileRef: "default-part",
+            localTransform: translationTransform(0, 0, 0)
+          }
+        ]
+      }
+    ],
+    joints: []
+  };
+  const meshes = new Map([
+    ["motor-part", partMesh({ min: [0, 0, 0], max: [1, 1, 0] })],
+    ["default-part", partMesh({ min: [0, 0, 0], max: [1, 1, 0] })]
+  ]);
+
+  const meshGeometry = buildUrdfMeshGeometry(urdfData, meshes);
+
+  assert.equal(meshGeometry.has_source_colors, true);
+  assert.deepEqual(
+    meshGeometry.parts.map((part) => part.hasSourceColors),
+    [true, false]
+  );
+  assert.deepEqual(
+    rounded(meshGeometry.colors.slice(0, 9)),
+    rounded(repeatedTriplet(linearHexTriplet("#2b2f33")))
+  );
+  assert.deepEqual(Array.from(meshGeometry.colors.slice(9, 18)), [1, 1, 1, 1, 1, 1, 1, 1, 1]);
 });

@@ -24,8 +24,9 @@ Supported joint types are:
 - `fixed`
 - `continuous`
 - `revolute`
+- `prismatic`
 
-For revolute joints, validate lower and upper limits. Confirm axes and origins match the intended kinematic behavior.
+For revolute and prismatic joints, validate lower and upper limits. Confirm axes and origins match the intended kinematic behavior.
 
 ## Mesh Checks
 

@@ -6,7 +6,7 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 
 URDF_SUFFIX = ".urdf"
-SUPPORTED_JOINT_TYPES = {"fixed", "continuous", "revolute"}
+SUPPORTED_JOINT_TYPES = {"fixed", "continuous", "revolute", "prismatic"}
 SUPPORTED_MESH_SUFFIXES = {".stl"}
 
 
@@ -231,19 +231,21 @@ def _joint_limits_deg(
     limit_element = joint_element.find("limit")
     if limit_element is None:
         raise UrdfSourceError(
-            f"{_relative_to_repo(source_path)} revolute joint {joint_element.attrib.get('name', '')!r} requires <limit>"
+            f"{_relative_to_repo(source_path)} {joint_type} joint {joint_element.attrib.get('name', '')!r} requires <limit>"
         )
     try:
         lower = float(limit_element.attrib["lower"])
         upper = float(limit_element.attrib["upper"])
     except KeyError as exc:
         raise UrdfSourceError(
-            f"{_relative_to_repo(source_path)} revolute joint {joint_element.attrib.get('name', '')!r} requires lower and upper limits"
+            f"{_relative_to_repo(source_path)} {joint_type} joint {joint_element.attrib.get('name', '')!r} requires lower and upper limits"
         ) from exc
     except ValueError as exc:
         raise UrdfSourceError(
-            f"{_relative_to_repo(source_path)} revolute joint {joint_element.attrib.get('name', '')!r} has invalid limits"
+            f"{_relative_to_repo(source_path)} {joint_type} joint {joint_element.attrib.get('name', '')!r} has invalid limits"
         ) from exc
+    if joint_type == "prismatic":
+        return lower, upper
     return degrees(lower), degrees(upper)
 
 

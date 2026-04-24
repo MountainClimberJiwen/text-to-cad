@@ -7,12 +7,14 @@ description: URDF generation and validation for robot model outputs. Use when th
 
 Use this skill for robot description outputs. URDF work is intentionally separate from ordinary CAD generation because the correctness questions are kinematic, XML, and mesh-reference oriented rather than primarily geometric.
 
+Viewer-specific metadata is allowed when the consuming UI expects it. In this workspace, the CAD viewer can read `texttocad:` namespaced pose presets from generated URDF files to populate the URDF file sheet with named poses. Treat that metadata as generator-owned, workspace-specific extension data rather than standard URDF.
+
 ## Workflow
 
 1. Treat the Python source that defines `gen_urdf()` as source of truth. Treat the configured `.urdf` file as generated.
 2. For the `gen_urdf()` envelope contract, read `references/generator-contract.md`.
 3. For robot description edits, read `references/urdf-workflow.md`.
-4. Edit links, joints, limits, axes, origins, inertials, materials, and mesh filenames deliberately.
+4. Edit links, joints, limits, axes, origins, inertials, materials, mesh filenames, and any viewer-specific `texttocad:` pose metadata deliberately.
 5. Regenerate only the explicit URDF target with `scripts/gen_urdf`.
 6. Use `--summary` for a compact robot/link/joint check after regeneration.
 7. For validation expectations, read `references/validation.md`.

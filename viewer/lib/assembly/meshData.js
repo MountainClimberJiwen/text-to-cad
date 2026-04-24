@@ -145,6 +145,43 @@ export function descendantLeafPartIds(node) {
     .filter(Boolean);
 }
 
+export function representativeAssemblyLeafPartId(node) {
+  const nodeId = String(node?.id || "").trim();
+  if (!node) {
+    return "";
+  }
+  if (String(node?.nodeType || "").trim() === "part") {
+    return nodeId;
+  }
+  const declaredLeafPartIds = Array.isArray(node?.leafPartIds)
+    ? node.leafPartIds.map((id) => String(id || "").trim()).filter(Boolean)
+    : [];
+  if (declaredLeafPartIds.length) {
+    return declaredLeafPartIds[0];
+  }
+  return descendantLeafPartIds(node)[0] || nodeId;
+}
+
+export function buildAssemblyLeafToNodePickMap(nodes) {
+  const map = new Map();
+  for (const node of Array.isArray(nodes) ? nodes : []) {
+    const nodeId = String(node?.id || "").trim();
+    if (!nodeId) {
+      continue;
+    }
+    const leafPartIds = Array.isArray(node?.leafPartIds) && node.leafPartIds.length
+      ? node.leafPartIds
+      : descendantLeafPartIds(node);
+    for (const leafPartId of leafPartIds) {
+      const normalizedLeafPartId = String(leafPartId || "").trim();
+      if (normalizedLeafPartId) {
+        map.set(normalizedLeafPartId, nodeId);
+      }
+    }
+  }
+  return map;
+}
+
 export function assemblyBreadcrumb(root, nodeId) {
   const normalizedNodeId = String(nodeId || "").trim();
   if (!root) {
@@ -202,7 +239,7 @@ export function buildAssemblyMeshData(topologyManifest, meshesBySourcePath) {
     }
     totalVertexCount += Math.floor((sourceMesh.vertices?.length || 0) / 3);
     totalIndexCount += sourceMesh.indices?.length || 0;
-    hasSourceColors ||= !!sourceMesh.has_source_colors && sourceMesh.colors?.length === sourceMesh.vertices?.length;
+    hasSourceColors ||= manifestPartUsesSourceColors(part) && sourceMeshHasColors(sourceMesh);
   }
 
   const vertices = new Float32Array(totalVertexCount * 3);
@@ -224,13 +261,14 @@ export function buildAssemblyMeshData(topologyManifest, meshesBySourcePath) {
     const transform = toTransformArray(manifestPart?.worldTransform || manifestPart?.transform);
     const vertexCount = Math.floor(sourceVertices.length / 3);
     const triangleCount = Math.floor(sourceIndices.length / 3);
+    const partHasSourceColors = manifestPartUsesSourceColors(manifestPart) && sourceMeshHasColors(sourceMesh);
     const partVertexOffset = vertexOffset;
     const partTriangleOffset = Math.floor(indexOffset / 3);
     const positionOffset = partVertexOffset * 3;
 
     copyTransformedVertices(vertices, positionOffset, sourceVertices, transform);
     copyTransformedNormals(normals, positionOffset, sourceNormals, transform, vertexCount);
-    if (hasSourceColors) {
+    if (hasSourceColors && partHasSourceColors) {
       copyColors(colors, positionOffset, sourceColors, vertexCount);
     }
     for (let index = 0; index < sourceIndices.length; index += 1) {
@@ -258,6 +296,7 @@ export function buildAssemblyMeshData(topologyManifest, meshesBySourcePath) {
       sourceBounds: sourceMesh.bounds,
       bounds,
       transform,
+      hasSourceColors: partHasSourceColors,
       vertexOffset: partVertexOffset,
       vertexCount,
       triangleOffset: partTriangleOffset,
@@ -281,4 +320,14 @@ export function buildAssemblyMeshData(topologyManifest, meshesBySourcePath) {
     assemblyRoot,
     has_source_colors: hasSourceColors
   };
+}
+
+function manifestPartUsesSourceColors(part) {
+  return part?.useSourceColors !== false;
+}
+
+function sourceMeshHasColors(sourceMesh) {
+  return !!sourceMesh?.has_source_colors &&
+    sourceMesh.colors?.length > 0 &&
+    sourceMesh.colors.length === sourceMesh.vertices?.length;
 }
