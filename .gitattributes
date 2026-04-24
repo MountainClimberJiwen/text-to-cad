@@ -1,9 +1,7 @@
-# Keep CAD exchange files and generated CAD artifacts out of normal git object history.
+# Keep CAD exchange files and generated render/topology assets out of normal git object history.
 *.step filter=lfs diff=lfs merge=lfs -text
 *.stp filter=lfs diff=lfs merge=lfs -text
 *.stl filter=lfs diff=lfs merge=lfs -text
-*.dxf filter=lfs diff=lfs merge=lfs -text
-*.glb filter=lfs diff=lfs merge=lfs -text
-models/**/topology.bin filter=lfs diff=lfs merge=lfs -text
-models/**/topology.json filter=lfs diff=lfs merge=lfs -text
-assets/*.gif filter=lfs diff=lfs merge=lfs -text
+**/.*.step/**/*.glb filter=lfs diff=lfs merge=lfs -text
+**/.*.step/topology.bin filter=lfs diff=lfs merge=lfs -text
+**/.*.step/topology.json filter=lfs diff=lfs merge=lfs -text
