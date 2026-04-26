@@ -723,9 +723,13 @@ export const LOOK_PRESETS = Object.freeze([
   }
 ]);
 
-export const DEFAULT_LOOK_PRESET_ID = LOOK_PRESETS[0].id;
+export const DEFAULT_LOOK_PRESET_ID = "cinematic";
 
-export const DEFAULT_LOOK_SETTINGS = Object.freeze(LOOK_PRESETS[0].settings);
+export const DEFAULT_LOOK_PRESET = Object.freeze(
+  LOOK_PRESETS.find((preset) => preset.id === DEFAULT_LOOK_PRESET_ID) || LOOK_PRESETS[0]
+);
+
+export const DEFAULT_LOOK_SETTINGS = Object.freeze(DEFAULT_LOOK_PRESET.settings);
 
 const PRESET_ID_SET = new Set(ENVIRONMENT_PRESETS.map((preset) => preset.id));
 
@@ -879,7 +883,7 @@ export function cloneLookSettings(value = DEFAULT_LOOK_SETTINGS) {
 }
 
 export function getLookPresetById(presetId) {
-  return LOOK_PRESETS.find((preset) => preset.id === presetId) || LOOK_PRESETS[0];
+  return LOOK_PRESETS.find((preset) => preset.id === presetId) || DEFAULT_LOOK_PRESET;
 }
 
 export function cloneLookPresetSettings(presetId) {

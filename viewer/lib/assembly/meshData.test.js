@@ -10,6 +10,7 @@ import {
   findAssemblyNode,
   flattenAssemblyNodes,
   flattenAssemblyLeafParts,
+  leafPartIdsForAssemblySelection,
   representativeAssemblyLeafPartId
 } from "./meshData.js";
 
@@ -329,6 +330,30 @@ test("assembly mesh requests and picking maps use only descendant leaves", () =>
       ["leaf_a", "module"],
       ["leaf_b", "module"]
     ]
+  );
+  const assemblyPartMap = new Map(flattenAssemblyNodes(root).map((node) => [node.id, node]));
+  assert.deepEqual(
+    leafPartIdsForAssemblySelection("module", {
+      assemblyPartMap,
+      fallbackPartId: "leaf_a",
+      validLeafPartIds: ["leaf_a", "leaf_b"]
+    }),
+    ["leaf_a", "leaf_b"]
+  );
+  assert.deepEqual(
+    leafPartIdsForAssemblySelection("leaf_a", {
+      assemblyPartMap,
+      validLeafPartIds: ["leaf_a", "leaf_b"]
+    }),
+    ["leaf_a"]
+  );
+  assert.deepEqual(
+    leafPartIdsForAssemblySelection("missing", {
+      assemblyPartMap,
+      fallbackPartId: "leaf_b",
+      validLeafPartIds: ["leaf_a", "leaf_b"]
+    }),
+    ["leaf_b"]
   );
   assert.equal(representativeAssemblyLeafPartId(root.children[0]), "leaf_a");
 });

@@ -1,6 +1,7 @@
 import { clonePerspectiveSnapshot, perspectiveSnapshotEqual } from "../perspective.js";
 import {
   cloneLookSettings,
+  DEFAULT_LOOK_PRESET,
   DEFAULT_LOOK_SETTINGS,
   normalizeLookSettings
 } from "../lookSettings.js";
@@ -18,9 +19,11 @@ const CAD_WORKSPACE_GLASS_TONE_STORAGE_KEY = "cad-explorer:workbench-glass-tone:
 const DXF_BEND_OVERRIDE_STORAGE_KEY = "cad-explorer:dxf-bend-overrides:v1";
 const CAD_WORKSPACE_SESSION_STORAGE_VERSION = 2;
 const CAD_WORKSPACE_LOCAL_STORAGE_VERSION = 1;
+const CAD_WORKSPACE_LEGACY_DEFAULT_PANEL_WIDTH = 300;
 
-export const CAD_WORKSPACE_DEFAULT_SIDEBAR_WIDTH = 300;
-export const CAD_WORKSPACE_DEFAULT_TAB_TOOLS_WIDTH = 300;
+export const CAD_WORKSPACE_DEFAULT_SIDEBAR_WIDTH = 260;
+export const CAD_WORKSPACE_DEFAULT_TAB_TOOLS_WIDTH = 260;
+export const CAD_WORKSPACE_DEFAULT_GLASS_TONE = DEFAULT_LOOK_PRESET.glassTone === "dark" ? "dark" : "light";
 
 function hasOwn(object, key) {
   return Object.prototype.hasOwnProperty.call(object, key);
@@ -53,6 +56,11 @@ function normalizeBoolean(value, fallback) {
 function normalizeNumber(value, fallback) {
   const numericValue = Number(value);
   return Number.isFinite(numericValue) ? numericValue : fallback;
+}
+
+function normalizePanelWidth(value, fallback) {
+  const numericValue = normalizeNumber(value, fallback);
+  return numericValue === CAD_WORKSPACE_LEGACY_DEFAULT_PANEL_WIDTH ? fallback : numericValue;
 }
 
 function cloneStringList(value) {
@@ -372,12 +380,12 @@ const GLOBAL_STATE_SCHEMA = [
   {
     key: "sidebarWidth",
     defaultValue: CAD_WORKSPACE_DEFAULT_SIDEBAR_WIDTH,
-    normalize: (value) => normalizeNumber(value, CAD_WORKSPACE_DEFAULT_SIDEBAR_WIDTH)
+    normalize: (value) => normalizePanelWidth(value, CAD_WORKSPACE_DEFAULT_SIDEBAR_WIDTH)
   },
   {
     key: "tabToolsWidth",
     defaultValue: CAD_WORKSPACE_DEFAULT_TAB_TOOLS_WIDTH,
-    normalize: (value) => normalizeNumber(value, CAD_WORKSPACE_DEFAULT_TAB_TOOLS_WIDTH)
+    normalize: (value) => normalizePanelWidth(value, CAD_WORKSPACE_DEFAULT_TAB_TOOLS_WIDTH)
   },
   {
     key: "urdfEntryAnimationEnabled",
@@ -592,13 +600,17 @@ export function writeLookSettings(lookSettings, options = {}) {
   );
 }
 
-export function normalizeCadWorkspaceGlassTone(value) {
-  return String(value || "").trim().toLowerCase() === "dark" ? "dark" : "light";
+export function normalizeCadWorkspaceGlassTone(value, fallback = CAD_WORKSPACE_DEFAULT_GLASS_TONE) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "dark" || normalized === "light") {
+    return normalized;
+  }
+  return fallback === "light" ? "light" : "dark";
 }
 
 export function readCadWorkspaceGlassTone() {
   if (typeof window === "undefined") {
-    return "light";
+    return CAD_WORKSPACE_DEFAULT_GLASS_TONE;
   }
   return normalizeCadWorkspaceGlassTone(window.localStorage.getItem(CAD_WORKSPACE_GLASS_TONE_STORAGE_KEY));
 }

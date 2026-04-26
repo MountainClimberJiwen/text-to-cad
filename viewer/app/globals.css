@@ -185,6 +185,30 @@
   --ui-glass-saturation: 1.44;
 }
 
+body [data-glass-tone="light"] {
+  --background: rgb(4 4 7 / 72%);
+  --card: rgb(6 6 9 / 74%);
+  --popover: rgb(6 6 9 / 78%);
+  --secondary: rgb(255 255 255 / 10%);
+  --muted: rgb(255 255 255 / 8%);
+  --accent: rgb(255 255 255 / 11%);
+  --input: rgb(255 255 255 / 16%);
+  --sidebar-accent: rgb(255 255 255 / 11%);
+  --ui-glass-control: rgb(2 2 5 / 64%);
+}
+
+body [data-glass-tone="dark"] {
+  --background: rgb(13 13 16 / 48%);
+  --card: rgb(22 22 25 / 58%);
+  --popover: rgb(24 24 27 / 64%);
+  --secondary: rgb(255 255 255 / 8%);
+  --muted: rgb(255 255 255 / 7%);
+  --accent: rgb(255 255 255 / 10%);
+  --input: rgb(255 255 255 / 14%);
+  --sidebar-accent: rgb(255 255 255 / 10%);
+  --ui-glass-control: rgb(13 13 16 / 30%);
+}
+
 .look-settings-theme,
 .look-settings-theme-portal {
   --ui-panel: var(--card);
@@ -259,6 +283,16 @@
   [data-slot="sidebar-wrapper"][data-sidebar-resizing="true"] [data-slot="sidebar-gap"],
   [data-slot="sidebar-wrapper"][data-sidebar-resizing="true"] [data-slot="sidebar-container"] {
     transition: none !important;
+  }
+
+  .cad-file-explorer-scroll [data-slot="scroll-area-viewport"] {
+    overflow-x: hidden !important;
+  }
+
+  .cad-file-explorer-scroll [data-slot="scroll-area-viewport"] > div {
+    display: block !important;
+    min-width: 0 !important;
+    width: 100% !important;
   }
 
   ::selection {

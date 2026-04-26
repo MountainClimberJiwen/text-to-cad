@@ -2,6 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { parseCadRefToken } from "../lib/cadRefs";
+import { copyImageBlobToClipboard } from "../lib/clipboard";
 import {
   annotatePerspectiveSnapshot,
   clonePerspectiveSnapshot,
@@ -57,8 +58,6 @@ const VIEW_PLANE_DEFAULT_PRESET = {
 };
 const CAD_EDGE_OPACITY = 0.84;
 const CAD_EDGE_THRESHOLD_DEG = 16;
-const CAD_GRID_FLOOR_OFFSET_FACTOR = 0.018;
-const CAD_GRID_FLOOR_OFFSET_MIN = 0.45;
 const DRAWING_STROKE_COLOR = "#ef4444";
 const DRAWING_STROKE_HALO = "rgba(255, 255, 255, 0.94)";
 const DRAWING_STROKE_WIDTH = 4;
@@ -4299,18 +4298,13 @@ const CadViewer = forwardRef(function CadViewer({
       }
 
       renderDrawingOverlay();
-      const blob = await buildCompositeScreenshotBlob(runtime, drawingCanvasRef.current);
+      const blobPromise = buildCompositeScreenshotBlob(runtime, drawingCanvasRef.current);
 
       if (mode === "clipboard") {
-        const clipboard = navigator?.clipboard;
-        const ClipboardItemCtor = globalThis.ClipboardItem;
-        if (!clipboard?.write || typeof ClipboardItemCtor === "undefined") {
-          throw new Error("Clipboard image copy is not supported in this browser");
-        }
-        await clipboard.write([new ClipboardItemCtor({ [blob.type]: blob })]);
-        return blob;
+        return await copyImageBlobToClipboard(blobPromise);
       }
 
+      const blob = await blobPromise;
       const downloadUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = downloadUrl;
@@ -4833,7 +4827,7 @@ const CadViewer = forwardRef(function CadViewer({
       runtime,
       viewerTheme,
       radius,
-      toNumber(boundsMin[1]) - center.y - Math.max(radius * CAD_GRID_FLOOR_OFFSET_FACTOR, getSceneScaleSettings(normalizedSceneScaleMode).minFloorOffset),
+      toNumber(boundsMin[1]) - center.y,
       normalizedSceneScaleMode,
       resolvedFloorMode
     );

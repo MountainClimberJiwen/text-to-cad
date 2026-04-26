@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { copyTextToClipboard } from "./clipboard.js";
+import { copyImageBlobToClipboard, copyTextToClipboard } from "./clipboard.js";
 
 function replaceGlobal(name, value) {
   const descriptor = Object.getOwnPropertyDescriptor(globalThis, name);
@@ -172,3 +172,59 @@ test("copyTextToClipboard reports unavailable clipboard when every strategy fail
   assert.equal(fakeDocument.appendedCount, 0);
 });
 
+test("copyImageBlobToClipboard starts clipboard write before screenshot blob resolves", async () => {
+  const events = [];
+  let resolveBlob;
+  class FakeClipboardItem {
+    constructor(items) {
+      events.push("item");
+      this.items = items;
+    }
+  }
+  const restoreClipboardItem = replaceGlobal("ClipboardItem", FakeClipboardItem);
+  const restoreNavigator = replaceGlobal("navigator", {
+    clipboard: {
+      async write(items) {
+        events.push("write");
+        assert.equal(items.length, 1);
+        const item = items[0];
+        const pngBlobPromise = item.items["image/png"];
+        assert.equal(typeof pngBlobPromise?.then, "function");
+        const blob = await pngBlobPromise;
+        events.push(`resolved:${blob.type}`);
+      }
+    }
+  });
+  const blobPromise = new Promise((resolve) => {
+    resolveBlob = resolve;
+  });
+
+  let copied;
+  try {
+    copied = copyImageBlobToClipboard(blobPromise);
+    assert.deepEqual(events, ["item", "write"]);
+    resolveBlob(new Blob(["png"], { type: "image/png" }));
+    const result = await copied;
+    assert.equal(result.type, "image/png");
+  } finally {
+    restoreNavigator();
+    restoreClipboardItem();
+  }
+
+  assert.deepEqual(events, ["item", "write", "resolved:image/png"]);
+});
+
+test("copyImageBlobToClipboard reports unsupported image clipboard", async () => {
+  const restoreClipboardItem = replaceGlobal("ClipboardItem", class {});
+  const restoreNavigator = replaceGlobal("navigator", {});
+
+  try {
+    await assert.rejects(
+      copyImageBlobToClipboard(Promise.resolve(new Blob(["png"], { type: "image/png" }))),
+      /Clipboard image copy is not supported/
+    );
+  } finally {
+    restoreNavigator();
+    restoreClipboardItem();
+  }
+});

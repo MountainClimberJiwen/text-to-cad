@@ -36,8 +36,6 @@ Optional fields include:
 - `glb_tolerance`, `glb_angular_tolerance`
 - `skip_topology`: for parts that should emit GLB without selector topology sidecars
 
-Color is not an envelope field; set it directly on the returned shape via `shape.color = build123d.Color(r, g, b)` to have it written into the exported GLB.
-
 `gen_dxf()` must return:
 
 - `document`: an object with a callable `saveas(...)`
@@ -103,24 +101,6 @@ Envelope output fields and CLI output fields:
 - are resolved as file paths, not through a harness root
 
 The host project may impose its own layout policy, such as keeping outputs under a `models/` directory, but the CAD skill runtime does not hardcode that convention.
-
-## Axis and Units
-
-The harness's derived render artifacts flow through Y-up, meters pipelines:
-
-- GLB export uses the glTF Y-up convention; `build123d.export_gltf` auto-scales millimeters to meters.
-- The `snapshot` camera presets (`front`, `back`, `left`, `right`, `top`, `bottom`, `isometric`) all use `up = (0, 1, 0)`.
-- The CAD Explorer viewer is a Y-up three.js scene.
-
-Neither `build123d` nor STEP imposes an up-axis on generator geometry, so parts authored with Z-up height render rotated in both the viewer and `snapshot` output. Write generators with Y as the height axis:
-
-- Build profiles in the XY plane with Y = height.
-- Extrude along Z for depth/width.
-- Keep the part's floor at Y = 0 unless the design requires otherwise.
-
-Generators that inherit Z-up geometry can apply a terminal `shape.rotate(Axis.X, -90)` before returning, but building Y-up from the start avoids orientation drift across booleans and fillets.
-
-STEP files carry coordinates as written and do not encode an up-axis. Downstream consumers that target Z-up pipelines (e.g. Isaac Sim, ROS) must apply their own conversion on import.
 
 ## Generated Artifacts
 

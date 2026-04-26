@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
   cloneLookPresetSettings,
+  DEFAULT_LOOK_PRESET_ID,
+  DEFAULT_LOOK_SETTINGS,
   getLookPresetIdForSettings,
   LOOK_PRESETS,
   normalizeLookSettings
@@ -17,6 +19,11 @@ test("look presets expose a default material color", () => {
   assert.equal(pink.materials.defaultColor, "#ff8bd2");
   assert.equal(getLookPresetIdForSettings(blue), "blue");
   assert.equal(getLookPresetIdForSettings(pink), "pink");
+});
+
+test("cinematic is the default look preset", () => {
+  assert.equal(DEFAULT_LOOK_PRESET_ID, "cinematic");
+  assert.equal(getLookPresetIdForSettings(DEFAULT_LOOK_SETTINGS), "cinematic");
 });
 
 test("normalizeLookSettings migrates legacy tint color into default color", () => {

@@ -6,15 +6,18 @@ import {
   selectedEntryKeyFromUrl,
   listSidebarItems,
   filenameLabelForEntry,
+  normalizeCadFileQueryParam,
   normalizeCadRefQueryParams,
   sidebarDirectoryIdForEntry,
   sidebarLabelForEntry
 } from "./sidebar.js";
 import {
+  readCadWorkspaceGlassTone,
   readCadWorkspaceSessionState,
   resetCadWorkspacePersistence,
   writeCadWorkspaceSessionState
 } from "./persistence.js";
+import { restoredSidebarWidthForViewport } from "../../components/workbench/hooks/useCadWorkspaceSession.js";
 
 function createMemoryStorage() {
   const values = new Map();
@@ -207,6 +210,65 @@ test("workspace global state persists expanded directories and URDF entry animat
   }
 });
 
+test("workspace global state migrates legacy default panel widths", () => {
+  const originalWindow = globalThis.window;
+  globalThis.window = {
+    localStorage: createMemoryStorage(),
+    sessionStorage: createMemoryStorage()
+  };
+
+  try {
+    writeCadWorkspaceSessionState({
+      openTabs: [],
+      selectedKey: "",
+      sidebarWidth: 300,
+      tabToolsWidth: 300
+    });
+
+    const restoredSession = readCadWorkspaceSessionState();
+
+    assert.equal(restoredSession.sidebarWidth, 260);
+    assert.equal(restoredSession.tabToolsWidth, 260);
+  } finally {
+    if (originalWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = originalWindow;
+    }
+  }
+});
+
+test("workspace desktop restore resets auto-collapsed sidebar width", () => {
+  assert.equal(
+    restoredSidebarWidthForViewport(
+      { sidebarOpen: true, sidebarWidth: 150 },
+      { desktopViewport: true, defaultSidebarWidth: 260, sidebarMinWidth: 150 }
+    ),
+    260
+  );
+  assert.equal(
+    restoredSidebarWidthForViewport(
+      { sidebarOpen: false, sidebarWidth: 420 },
+      { desktopViewport: true, defaultSidebarWidth: 260, sidebarMinWidth: 150 }
+    ),
+    260
+  );
+  assert.equal(
+    restoredSidebarWidthForViewport(
+      { sidebarOpen: true, sidebarWidth: 420 },
+      { desktopViewport: true, defaultSidebarWidth: 260, sidebarMinWidth: 150 }
+    ),
+    420
+  );
+  assert.equal(
+    restoredSidebarWidthForViewport(
+      { sidebarOpen: false, sidebarWidth: 150 },
+      { desktopViewport: false, defaultSidebarWidth: 260, sidebarMinWidth: 150 }
+    ),
+    150
+  );
+});
+
 test("workspace global state defaults URDF entry animation preference to enabled", () => {
   const originalWindow = globalThis.window;
   globalThis.window = {
@@ -223,6 +285,26 @@ test("workspace global state defaults URDF entry animation preference to enabled
 
     const restoredSession = readCadWorkspaceSessionState();
     assert.equal(restoredSession.urdfEntryAnimationEnabled, true);
+  } finally {
+    if (originalWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = originalWindow;
+    }
+  }
+});
+
+test("workspace glass tone defaults to cinematic dark tone", () => {
+  const originalWindow = globalThis.window;
+  globalThis.window = {
+    localStorage: createMemoryStorage(),
+    sessionStorage: createMemoryStorage()
+  };
+
+  try {
+    assert.equal(readCadWorkspaceGlassTone(), "dark");
+    globalThis.window.localStorage.setItem("cad-explorer:workbench-glass-tone:v1", "light");
+    assert.equal(readCadWorkspaceGlassTone(), "light");
   } finally {
     if (originalWindow === undefined) {
       delete globalThis.window;
@@ -302,6 +384,45 @@ test("selectedEntryKeyFromUrl restores the selected file query param", () => {
       globalThis.window = originalWindow;
     }
   }
+});
+
+test("selectedEntryKeyFromUrl accepts repo-relative file params inside the active CAD directory", () => {
+  const originalWindow = globalThis.window;
+  globalThis.window = {
+    location: {
+      search: "?dir=models&file=models%2Fparts%2Fsample_plate.step"
+    }
+  };
+
+  try {
+    assert.equal(
+      selectedEntryKeyFromUrl([
+        {
+          file: "parts/sample_base.step",
+          cadPath: "models/parts/sample_base",
+          kind: "part"
+        },
+        {
+          file: "parts/sample_plate.step",
+          cadPath: "models/parts/sample_plate",
+          kind: "part"
+        }
+      ]),
+      "parts/sample_plate.step"
+    );
+  } finally {
+    if (originalWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = originalWindow;
+    }
+  }
+});
+
+test("normalizeCadFileQueryParam keeps scan-relative file params unchanged", () => {
+  assert.equal(normalizeCadFileQueryParam("parts/sample_plate.step", "models"), "parts/sample_plate.step");
+  assert.equal(normalizeCadFileQueryParam("models/parts/sample_plate.step", "models"), "parts/sample_plate.step");
+  assert.equal(normalizeCadFileQueryParam("models/imports/widget.step", "models/imports"), "widget.step");
 });
 
 test("selectedEntryKeyFromUrl restores the selected canonical ref query param", () => {

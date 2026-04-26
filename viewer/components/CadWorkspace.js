@@ -46,6 +46,7 @@ import {
   dxfBendSettingsEqual,
   drawingStrokesEqual,
   LOOK_SETTINGS_STORAGE_KEY,
+  CAD_WORKSPACE_DEFAULT_GLASS_TONE,
   normalizeCadWorkspaceGlassTone,
   readDxfBendOverridesForEntry,
   readLookSettings,
@@ -104,7 +105,7 @@ import {
   findAssemblyNode,
   flattenAssemblyNodes,
   flattenAssemblyLeafParts,
-  representativeAssemblyLeafPartId
+  leafPartIdsForAssemblySelection
 } from "../lib/assembly/meshData";
 import { copyTextToClipboard } from "../lib/clipboard";
 
@@ -122,7 +123,7 @@ const DEFAULT_URDF_ANIMATION_SETTINGS = Object.freeze({
 });
 const MIN_URDF_ANIMATION_SPEED = 0.25;
 const MAX_URDF_ANIMATION_SPEED = 2.5;
-const DESKTOP_SIDEBAR_MIN_WIDTH = 144;
+const DESKTOP_SIDEBAR_MIN_WIDTH = 150;
 const DESKTOP_SIDEBAR_MAX_WIDTH = 520;
 const DEFAULT_SIDEBAR_WIDTH = CAD_WORKSPACE_DEFAULT_SIDEBAR_WIDTH;
 const DESKTOP_TAB_TOOLS_MIN_WIDTH = 160;
@@ -1401,20 +1402,16 @@ export default function CadWorkspace({
     () => new Set(validAssemblyLeafIds),
     [validAssemblyLeafIds]
   );
-  const renderPartIdForAssemblySelection = useCallback((partId, fallbackPartId = "") => {
-    const normalizedFallbackPartId = String(fallbackPartId || "").trim();
-    if (normalizedFallbackPartId && validAssemblyLeafIdSet.has(normalizedFallbackPartId)) {
-      return normalizedFallbackPartId;
-    }
-    const normalizedPartId = String(partId || "").trim();
-    if (!normalizedPartId) {
-      return "";
-    }
-    if (validAssemblyLeafIdSet.has(normalizedPartId)) {
-      return normalizedPartId;
-    }
-    return representativeAssemblyLeafPartId(assemblyPartMap.get(normalizedPartId) || null);
+  const renderPartIdsForAssemblySelection = useCallback((partId, fallbackPartId = "") => {
+    return leafPartIdsForAssemblySelection(partId, {
+      assemblyPartMap,
+      fallbackPartId,
+      validLeafPartIds: validAssemblyLeafIdSet
+    });
   }, [assemblyPartMap, validAssemblyLeafIdSet]);
+  const renderPartIdForAssemblySelection = useCallback((partId, fallbackPartId = "") => {
+    return renderPartIdsForAssemblySelection(partId, fallbackPartId)[0] || "";
+  }, [renderPartIdsForAssemblySelection]);
   const selectedUrdfPreviewError = selectedUrdfPreview.error;
   const selectedDxfBendLines = useMemo(() => {
     if (!selectedDxfData) {
@@ -1658,6 +1655,7 @@ export default function CadWorkspace({
 
   const handleResetLookSettings = useCallback(() => {
     setLookSettings(cloneLookSettings(DEFAULT_LOOK_SETTINGS));
+    setCadWorkspaceGlassTone(CAD_WORKSPACE_DEFAULT_GLASS_TONE);
   }, []);
 
   const handleViewerAlertChange = useCallback((nextAlert) => {
@@ -1701,6 +1699,16 @@ export default function CadWorkspace({
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
   }, [isDesktop, sidebarOpen, sidebarWidth]);
+
+  const handleSidebarOpenChange = useCallback((value) => {
+    setSidebarOpen((current) => {
+      const nextOpen = typeof value === "function" ? value(current) : value;
+      if (!current && nextOpen) {
+        setSidebarWidth(DEFAULT_SIDEBAR_WIDTH);
+      }
+      return nextOpen;
+    });
+  }, []);
 
   const resetSelectionForStepUpdate = useCallback(() => {
     selectedPartIdsRef.current = [];
@@ -2038,6 +2046,8 @@ export default function CadWorkspace({
     buildActiveTabSnapshot,
     catalogEntries,
     manifestRevision,
+    defaultSidebarWidth: DEFAULT_SIDEBAR_WIDTH,
+    sidebarMinWidth: DESKTOP_SIDEBAR_MIN_WIDTH,
     readCadParam,
     readCadRefQueryParams,
     setPendingCadRefQueryParams,
@@ -2224,6 +2234,7 @@ export default function CadWorkspace({
     setTabToolsWidth,
     panelResizeStateRef,
     tabToolsResizeStateRef,
+    defaultSidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     sidebarMinWidth: DESKTOP_SIDEBAR_MIN_WIDTH,
     tabToolsMinWidth: DESKTOP_TAB_TOOLS_MIN_WIDTH,
     endPanelResize,
@@ -2737,7 +2748,7 @@ export default function CadWorkspace({
       return selectedPartIds;
     }
     return uniqueStringList(
-      selectedPartIds.map((id) => renderPartIdForAssemblySelection(
+      selectedPartIds.flatMap((id) => renderPartIdsForAssemblySelection(
         id,
         selectedRenderPartIdByAssemblyPartId[String(id || "").trim()]
       ))
@@ -2745,7 +2756,7 @@ export default function CadWorkspace({
   }, [
     isAssemblyView,
     isInspectingAssemblyPart,
-    renderPartIdForAssemblySelection,
+    renderPartIdsForAssemblySelection,
     selectedPartIds,
     selectedRenderPartIdByAssemblyPartId
   ]);
@@ -2753,8 +2764,17 @@ export default function CadWorkspace({
     if (!isAssemblyView || isInspectingAssemblyPart || !hoveredPartId) {
       return hoveredPartId;
     }
-    return renderPartIdForAssemblySelection(hoveredPartId, hoveredPartId) || hoveredPartId;
-  }, [hoveredPartId, isAssemblyView, isInspectingAssemblyPart, renderPartIdForAssemblySelection]);
+    const normalizedHoveredPartId = String(hoveredPartId || "").trim();
+    const hoveredSelectionId = assemblyPickPartIdMap.get(normalizedHoveredPartId) || normalizedHoveredPartId;
+    const highlightedPartIds = renderPartIdsForAssemblySelection(hoveredSelectionId, normalizedHoveredPartId);
+    return highlightedPartIds.length ? highlightedPartIds : hoveredPartId;
+  }, [
+    assemblyPickPartIdMap,
+    hoveredPartId,
+    isAssemblyView,
+    isInspectingAssemblyPart,
+    renderPartIdsForAssemblySelection
+  ]);
 
   const handleUrdfJointValueChange = useCallback((joint, nextValueDeg) => {
     const jointName = String(joint?.name || "").trim();
@@ -3187,12 +3207,12 @@ export default function CadWorkspace({
         return;
       }
       setHoveredModelReferenceId("");
-      setHoveredModelPartId(pickedPartId);
+      setHoveredModelPartId(assemblyPickPartIdMap.get(pickedPartId) || pickedPartId);
       return;
     }
     const nextReferenceId = String(referenceId || "").trim();
     setHoveredModelReferenceId(nextReferenceId);
-  }, [viewerInAssemblyMode]);
+  }, [assemblyPickPartIdMap, viewerInAssemblyMode]);
 
   const handleModelReferenceActivate = useCallback((referenceId, { multiSelect = false } = {}) => {
     if (stepUpdateInProgress) {
@@ -3508,7 +3528,7 @@ export default function CadWorkspace({
   return (
     <SidebarProvider
       open={sidebarOpen}
-      onOpenChange={setSidebarOpen}
+      onOpenChange={handleSidebarOpenChange}
       mobileOpen={mobileSidebarOpen}
       onMobileOpenChange={setMobileSidebarOpen}
       data-glass-tone={normalizeCadWorkspaceGlassTone(cadWorkspaceGlassTone)}

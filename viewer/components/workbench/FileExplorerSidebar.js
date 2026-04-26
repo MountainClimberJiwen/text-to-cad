@@ -88,9 +88,8 @@ function FileEntryButton({
       size="sm"
       title={title}
       className={cn(
-        "w-full justify-start"
+        "min-w-0 w-full justify-start"
       )}
-      style={depth > 1 ? { paddingLeft: `${0.5 + Math.max(depth - 1, 0) * 0.75}rem` } : undefined}
       onClick={() => {
         onSelectEntry(key);
         if (isMobile) {
@@ -100,7 +99,7 @@ function FileEntryButton({
       tooltip={label}
     >
       <EntryIcon className={cn(pending && "animate-spin")} aria-hidden="true" />
-      <span>{label}</span>
+      <span className="block min-w-0 flex-1 max-w-full overflow-hidden text-ellipsis whitespace-nowrap">{label}</span>
     </SidebarMenuButton>
   );
 }
@@ -124,7 +123,7 @@ function DirectoryNode({
 
   return (
     <Collapsible asChild open={expanded}>
-      <DirectoryItem>
+      <DirectoryItem className="min-w-0 w-full max-w-full">
         <CollapsibleTrigger asChild>
           <SidebarMenuButton
             type="button"
@@ -132,10 +131,9 @@ function DirectoryNode({
             title={directory.name}
             aria-disabled={queryActive}
             className={cn(
-              "group/directory w-full justify-start",
+              "group/directory min-w-0 w-full justify-start",
               queryActive && "cursor-default"
             )}
-            style={depth > 1 ? { paddingLeft: `${0.5 + Math.max(depth - 1, 0) * 0.75}rem` } : undefined}
             onClick={(event) => {
               if (queryActive) {
                 event.preventDefault();
@@ -151,12 +149,12 @@ function DirectoryNode({
               )}
               aria-hidden="true"
             />
-            <span>{directory.name}</span>
+            <span className="block min-w-0 flex-1 max-w-full overflow-hidden text-ellipsis whitespace-nowrap">{directory.name}</span>
           </SidebarMenuButton>
         </CollapsibleTrigger>
 
-        <CollapsibleContent>
-          <SidebarMenuSub>
+        <CollapsibleContent className="min-w-0 w-full max-w-full">
+          <SidebarMenuSub className="min-w-0 w-full max-w-full">
             {listSidebarItems(directory).map((item) => {
               if (item.type === "directory") {
                 return (
@@ -178,7 +176,7 @@ function DirectoryNode({
                 );
               }
               return (
-                <SidebarMenuSubItem key={item.key}>
+                <SidebarMenuSubItem key={item.key} className="min-w-0 w-full max-w-full">
                   <FileEntryButton
                     entry={item.value}
                     depth={depth + 1}
@@ -271,7 +269,7 @@ export default function FileExplorerSidebar({
       </SidebarHeader>
 
       <SidebarContent>
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea className="cad-file-explorer-scroll min-h-0 min-w-0 flex-1 overflow-x-hidden">
           <SidebarGroup>
             <SidebarGroupContent>
               {hasMatches ? (
@@ -296,7 +294,7 @@ export default function FileExplorerSidebar({
                       );
                     }
                     return (
-                      <SidebarMenuItem key={item.key}>
+                      <SidebarMenuItem key={item.key} className="min-w-0 w-full max-w-full">
                         <FileEntryButton
                           entry={item.value}
                           depth={0}

@@ -92,6 +92,49 @@ function execCommandCopyText(text) {
   return copied;
 }
 
+function normalizeClipboardImageBlob(blob, fallbackType) {
+  if (!blob || typeof blob !== "object") {
+    throw new Error("Failed to encode screenshot");
+  }
+
+  const type = String(blob.type || fallbackType || "").trim();
+  if (!type) {
+    return blob;
+  }
+  if (blob.type === type) {
+    return blob;
+  }
+  return blob.slice(0, blob.size, type);
+}
+
+export async function copyImageBlobToClipboard(blobOrPromise, { type = "image/png" } = {}) {
+  const clipboard = globalThis.navigator?.clipboard;
+  const ClipboardItemCtor = globalThis.ClipboardItem;
+  if (!clipboard?.write || typeof ClipboardItemCtor !== "function") {
+    throw new Error("Clipboard image copy is not supported in this browser");
+  }
+
+  const normalizedType = String(type || "image/png").trim() || "image/png";
+  const blobPromise = Promise.resolve(blobOrPromise).then((blob) => normalizeClipboardImageBlob(blob, normalizedType));
+
+  let item;
+  try {
+    item = new ClipboardItemCtor({ [normalizedType]: blobPromise });
+  } catch {
+    const blob = await blobPromise;
+    const blobType = String(blob.type || normalizedType).trim() || normalizedType;
+    item = new ClipboardItemCtor({ [blobType]: blob });
+  }
+
+  try {
+    await clipboard.write([item]);
+  } catch (error) {
+    blobPromise.catch(() => {});
+    throw error;
+  }
+  return await blobPromise;
+}
+
 export async function copyTextToClipboard(text) {
   const clipboardText = String(text ?? "");
   const clipboard = globalThis.navigator?.clipboard;
@@ -115,4 +158,3 @@ export async function copyTextToClipboard(text) {
   }
   throw new Error("Clipboard is unavailable");
 }
-

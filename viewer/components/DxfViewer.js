@@ -8,6 +8,7 @@ import {
   useRef,
   useState
 } from "react";
+import { copyImageBlobToClipboard } from "../lib/clipboard";
 
 const MIN_VIEW_SIZE = 1;
 const VIEW_PADDING_RATIO = 0.08;
@@ -230,22 +231,17 @@ const DxfViewer = forwardRef(function DxfViewer({
       const pixelRatio = Math.max(window.devicePixelRatio || 1, 1);
       const width = Math.max(1, Math.round(rect.width * pixelRatio));
       const height = Math.max(1, Math.round(rect.height * pixelRatio));
-      const blob = await buildSvgScreenshotBlob(svgElement, {
+      const blobPromise = buildSvgScreenshotBlob(svgElement, {
         width,
         height,
         backgroundColor: palette.background
       });
 
       if (mode === "clipboard") {
-        const clipboard = navigator?.clipboard;
-        const ClipboardItemCtor = globalThis.ClipboardItem;
-        if (!clipboard?.write || typeof ClipboardItemCtor === "undefined") {
-          throw new Error("Clipboard image copy is not supported in this browser");
-        }
-        await clipboard.write([new ClipboardItemCtor({ [blob.type]: blob })]);
-        return blob;
+        return await copyImageBlobToClipboard(blobPromise);
       }
 
+      const blob = await blobPromise;
       const downloadUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = downloadUrl;

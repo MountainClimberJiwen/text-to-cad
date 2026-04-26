@@ -7,13 +7,11 @@ const SCENE_SCALE_SETTINGS = Object.freeze({
   [VIEWER_SCENE_SCALE.CAD]: Object.freeze({
     minModelRadius: 1,
     minGridSize: 280,
-    minFloorOffset: 0.45,
     lightingScopeRadius: 140
   }),
   [VIEWER_SCENE_SCALE.URDF]: Object.freeze({
     minModelRadius: 0.05,
     minGridSize: 0.5,
-    minFloorOffset: 0.02,
     lightingScopeRadius: 0.25
   })
 });

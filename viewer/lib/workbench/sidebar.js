@@ -2,6 +2,8 @@ import { buildCadRefToken, parseCadRefToken } from "../cadRefs.js";
 
 const CAD_QUERY_PARAM = "file";
 const CAD_REF_QUERY_PARAM = "refs";
+const CAD_DIRECTORY_QUERY_PARAM = "dir";
+const DEFAULT_CAD_DIRECTORY = "models";
 
 export function fileKey(entry) {
   return String(entry?.file || "").trim();
@@ -14,6 +16,29 @@ export function cadPathForEntry(entry) {
 function replaceUrl(url) {
   const nextSearch = url.searchParams.toString();
   window.history.replaceState({}, "", `${url.pathname}${nextSearch ? `?${nextSearch}` : ""}${url.hash}`);
+}
+
+function normalizeUrlPath(value) {
+  return String(value || "").trim().replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+}
+
+function readCadDirectoryParam(params) {
+  return normalizeUrlPath(params.get(CAD_DIRECTORY_QUERY_PARAM)) || DEFAULT_CAD_DIRECTORY;
+}
+
+export function normalizeCadFileQueryParam(value, dir = DEFAULT_CAD_DIRECTORY) {
+  const normalizedValue = normalizeUrlPath(value);
+  const normalizedDir = normalizeUrlPath(dir) || DEFAULT_CAD_DIRECTORY;
+  if (!normalizedValue) {
+    return "";
+  }
+  if (normalizedValue === normalizedDir) {
+    return "";
+  }
+  if (normalizedValue.startsWith(`${normalizedDir}/`)) {
+    return normalizedValue.slice(normalizedDir.length + 1);
+  }
+  return normalizedValue;
 }
 
 export function normalizeCadRefQueryParams(values) {
@@ -55,7 +80,10 @@ export function readCadParam() {
   }
   const params = new URLSearchParams(window.location.search);
   const value = params.get(CAD_QUERY_PARAM);
-  return typeof value === "string" && value.length > 0 ? value : null;
+  const normalizedValue = typeof value === "string"
+    ? normalizeCadFileQueryParam(value, readCadDirectoryParam(params))
+    : "";
+  return normalizedValue || null;
 }
 
 export function readCadRefQueryParams() {

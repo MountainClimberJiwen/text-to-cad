@@ -18,7 +18,6 @@ test("CAD scenes keep the existing large minimum framing scale", () => {
   assert.deepEqual(getSceneScaleSettings(VIEWER_SCENE_SCALE.CAD), {
     minModelRadius: 1,
     minGridSize: 280,
-    minFloorOffset: 0.45,
     lightingScopeRadius: 140
   });
 });
@@ -32,7 +31,6 @@ test("URDF scenes use meter-appropriate minimums", () => {
   assert.deepEqual(getSceneScaleSettings(VIEWER_SCENE_SCALE.URDF), {
     minModelRadius: 0.05,
     minGridSize: 0.5,
-    minFloorOffset: 0.02,
     lightingScopeRadius: 0.25
   });
 });

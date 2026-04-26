@@ -182,6 +182,52 @@ export function buildAssemblyLeafToNodePickMap(nodes) {
   return map;
 }
 
+export function leafPartIdsForAssemblySelection(partId, {
+  assemblyPartMap,
+  fallbackPartId = "",
+  validLeafPartIds = []
+} = {}) {
+  const normalizedPartId = String(partId || "").trim();
+  const validLeafPartIdSet = validLeafPartIds instanceof Set
+    ? validLeafPartIds
+    : new Set(
+      (Array.isArray(validLeafPartIds) ? validLeafPartIds : [])
+        .map((id) => String(id || "").trim())
+        .filter(Boolean)
+    );
+  const leafIdIsValid = (id) => {
+    return !validLeafPartIdSet.size || validLeafPartIdSet.has(id);
+  };
+  const normalizeLeafIds = (leafPartIds) => {
+    const seen = new Set();
+    const result = [];
+    for (const leafPartId of Array.isArray(leafPartIds) ? leafPartIds : []) {
+      const normalizedLeafPartId = String(leafPartId || "").trim();
+      if (!normalizedLeafPartId || seen.has(normalizedLeafPartId) || !leafIdIsValid(normalizedLeafPartId)) {
+        continue;
+      }
+      seen.add(normalizedLeafPartId);
+      result.push(normalizedLeafPartId);
+    }
+    return result;
+  };
+
+  if (normalizedPartId) {
+    const selectedNode = assemblyPartMap instanceof Map
+      ? assemblyPartMap.get(normalizedPartId) || null
+      : null;
+    const selectedLeafPartIds = selectedNode
+      ? normalizeLeafIds(descendantLeafPartIds(selectedNode))
+      : normalizeLeafIds([normalizedPartId]);
+    if (selectedLeafPartIds.length) {
+      return selectedLeafPartIds;
+    }
+  }
+
+  const normalizedFallbackPartId = String(fallbackPartId || "").trim();
+  return normalizeLeafIds([normalizedFallbackPartId]);
+}
+
 export function assemblyBreadcrumb(root, nodeId) {
   const normalizedNodeId = String(nodeId || "").trim();
   if (!root) {

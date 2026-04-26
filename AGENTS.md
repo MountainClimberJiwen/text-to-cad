@@ -2,7 +2,7 @@
 
 This repository is a harness for script-driven CAD generation with coding agents like Codex and Claude Code.
 
-If you are modifying the viewer, go to `viewer/README.md`.
+If you are modifying the viewer app itself, go to `viewer/README.md`.
 
 ## Skill Routing
 
@@ -10,7 +10,7 @@ Use the bundled skills for workflow details:
 
 - `skills/cad/SKILL.md` for STEP, STL, DXF, GLB/topology artifacts, snapshots, and `@cad[...]` prompt references.
 - `skills/urdf/SKILL.md` for generated URDF files, `gen_urdf()`, robot links, joints, limits, and URDF mesh references.
-- `viewer/README.md` for viewer behavior, rendering UI, prompt capture UX, and frontend development.
+- `viewer/README.md` for viewer behavior, rendering UI, prompt capture UX, and frontend development. Do not read it just to form final CAD Explorer links; use the Viewer Handoff rules below.
 
 `AGENTS.md` is intentionally harness-focused. Reusable CAD and URDF workflow rules live inside the skills.
 
@@ -53,6 +53,23 @@ The viewer may provide annotated screenshots and `@cad[...]` references. Treat s
 Copied `@cad[...]` paths include the `models/` directory and omit the `.step` or `.stp` suffix. For ref grammar, selector semantics, stale-ref handling, and geometry-fact workflows, read `skills/cad/references/prompt-refs.md` and use `skills/cad/scripts/cadref`.
 
 Do not inspect viewer runtime assets to interpret prompt refs. Resolve refs from source STEP data through the CAD skill.
+
+## Viewer Handoff
+
+After editing or regenerating any viewer-displayable `.step`, `.stp`, `.stl`, `.dxf`, or `.urdf` entry, make CAD Explorer available and include links for the affected entries in the final response.
+
+Ensure the viewer server first:
+
+```bash
+npm --prefix viewer run dev:ensure
+```
+
+Viewer link rule: `file` is always relative to `dir`, and entry links must include `file=`.
+
+- Default scan root: `http://127.0.0.1:4178/?dir=models&file=<path-under-models-with-extension>`
+- Only use another scan root when it is intentional: `http://127.0.0.1:4178/?dir=<repo-relative-scan-dir>&file=<path-relative-to-that-dir-with-extension>`
+
+For CAD prompt refs, keep the entry `file=` and append URL-encoded `refs=` parameters. Python generators are not viewer entries; link their generated outputs. If only viewer app code changed, link the base viewer URL.
 
 ## Repo Policies
 

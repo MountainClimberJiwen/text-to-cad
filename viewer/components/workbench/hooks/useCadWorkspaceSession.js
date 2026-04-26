@@ -35,6 +35,24 @@ function normalizeRestoredOpenTabs(openTabs, createTabRecord, initialSelectedTab
   });
 }
 
+export function restoredSidebarWidthForViewport(
+  restoredSession,
+  {
+    desktopViewport = false,
+    defaultSidebarWidth = 260,
+    sidebarMinWidth = 0
+  } = {}
+) {
+  const restoredWidth = Number(restoredSession?.sidebarWidth);
+  const nextWidth = Number.isFinite(restoredWidth) ? restoredWidth : defaultSidebarWidth;
+
+  if (desktopViewport && (!restoredSession?.sidebarOpen || nextWidth <= sidebarMinWidth)) {
+    return defaultSidebarWidth;
+  }
+
+  return nextWidth;
+}
+
 export function useCadWorkspaceSession({
   manifestEntries,
   fileKey,
@@ -64,6 +82,8 @@ export function useCadWorkspaceSession({
   buildActiveTabSnapshot,
   catalogEntries,
   manifestRevision = 0,
+  defaultSidebarWidth = 260,
+  sidebarMinWidth = 0,
   readCadParam = () => null,
   readCadRefQueryParams = () => [],
   setPendingCadRefQueryParams = () => {},
@@ -93,6 +113,11 @@ export function useCadWorkspaceSession({
     if (restoredSession) {
       restoredCadWorkspaceSessionRef.current = true;
       const desktopViewport = window.matchMedia("(min-width: 1024px)").matches;
+      const restoredSidebarWidth = restoredSidebarWidthForViewport(restoredSession, {
+        desktopViewport,
+        defaultSidebarWidth,
+        sidebarMinWidth
+      });
       const restoredOpenTabs = normalizeRestoredOpenTabs(
         restoredSession.openTabs,
         createTabRecord,
@@ -101,7 +126,7 @@ export function useCadWorkspaceSession({
       setQuery(restoredSession.query);
       setExpandedDirectoryIds(new Set(restoredSession.expandedDirectoryIds));
       setSidebarOpen(desktopViewport ? true : restoredSession.sidebarOpen);
-      setSidebarWidth(restoredSession.sidebarWidth);
+      setSidebarWidth(restoredSidebarWidth);
       setTabToolsWidth(restoredSession.tabToolsWidth);
       setUrdfEntryAnimationEnabled(restoredSession.urdfEntryAnimationEnabled);
 
@@ -114,7 +139,9 @@ export function useCadWorkspaceSession({
         : null;
       const activeTab = urlSelectedKey
         ? (urlActiveTab || createTabRecord(urlSelectedKey, initialSelectedTabSnapshot || {}))
-        : restoredOpenTabs.find((tab) => tab.key === restoredSession.selectedKey) || null;
+        : initialUnresolvedUrlSelectionRef.current
+          ? null
+          : restoredOpenTabs.find((tab) => tab.key === restoredSession.selectedKey) || null;
 
       setOpenTabs(urlSelectedKey
         ? upsertTabRecord(restoredOpenTabs, urlSelectedKey, activeTab)
@@ -137,6 +164,7 @@ export function useCadWorkspaceSession({
     createTabRecord,
     fileKey,
     manifestEntries,
+    defaultSidebarWidth,
     readCadRefQueryParams,
     readCadParam,
     readCadWorkspaceSessionState,
@@ -153,7 +181,8 @@ export function useCadWorkspaceSession({
     upsertTabRecord,
     initialSelectedTabSnapshot,
     cadWorkspaceSessionBootstrappedRef,
-    cadWorkspaceSessionPersistenceReadyRef
+    cadWorkspaceSessionPersistenceReadyRef,
+    sidebarMinWidth
   ]);
 
   useEffect(() => {
@@ -254,7 +283,13 @@ export function useCadWorkspaceSession({
       const unresolvedUrlSelection = Boolean(readCadParam() || readCadRefQueryParams().length);
       if (unresolvedUrlSelection) {
         const urlSelectedKey = selectedEntryKeyFromUrl(catalogEntries);
-        if (urlSelectedKey || (initialUnresolvedUrlSelectionRef.current && manifestRevision === initialManifestRevisionRef.current)) {
+        if (
+          urlSelectedKey ||
+          (
+            initialUnresolvedUrlSelectionRef.current &&
+            (manifestRevision === initialManifestRevisionRef.current || !entryMap.size)
+          )
+        ) {
           return;
         }
       }

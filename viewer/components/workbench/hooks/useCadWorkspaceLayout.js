@@ -36,6 +36,7 @@ export function useCadWorkspaceLayout({
   setTabToolsWidth,
   panelResizeStateRef,
   tabToolsResizeStateRef,
+  defaultSidebarWidth,
   sidebarMinWidth,
   tabToolsMinWidth,
   endPanelResize,
@@ -108,10 +109,20 @@ export function useCadWorkspaceLayout({
         return;
       }
 
-      const nextWidth = Math.max(
-        sidebarMinWidth,
-        clampSidebarWidth(resizeState.startWidth + (event.clientX - resizeState.startX))
-      );
+      const rawWidth = resizeState.startWidth + (event.clientX - resizeState.startX);
+      if (rawWidth < sidebarMinWidth) {
+        if (resizeState.animationFrame) {
+          window.cancelAnimationFrame(resizeState.animationFrame);
+          resizeState.animationFrame = 0;
+        }
+        applySidebarWidth(defaultSidebarWidth);
+        setSidebarWidth(defaultSidebarWidth);
+        setSidebarOpen(false);
+        endPanelResize();
+        return;
+      }
+
+      const nextWidth = clampSidebarWidth(rawWidth);
       scheduleSidebarWidth(resizeState, nextWidth);
     };
 
@@ -152,6 +163,8 @@ export function useCadWorkspaceLayout({
     clampSidebarWidth,
     endPanelResize,
     panelResizeStateRef,
+    defaultSidebarWidth,
+    setSidebarOpen,
     setSidebarWidth,
     sidebarMinWidth,
     tabToolsResizeStateRef

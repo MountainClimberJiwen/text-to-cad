@@ -12,27 +12,34 @@ function readCadDirectoryParam() {
   return value || DEFAULT_CAD_DIRECTORY;
 }
 
+function normalizeCadDirectory(value = DEFAULT_CAD_DIRECTORY) {
+  const rawValue = String(value || "").trim() || DEFAULT_CAD_DIRECTORY;
+  return rawValue.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "") || DEFAULT_CAD_DIRECTORY;
+}
+
 function normalizeCadManifest(manifest, fallbackDir = DEFAULT_CAD_DIRECTORY) {
   if (!manifest || typeof manifest !== "object") {
+    const normalizedFallbackDir = normalizeCadDirectory(fallbackDir);
     return {
       schemaVersion: 3,
       root: {
-        dir: fallbackDir,
-        name: fallbackDir.split("/").filter(Boolean).pop() || fallbackDir,
-        path: fallbackDir,
+        dir: normalizedFallbackDir,
+        name: normalizedFallbackDir.split("/").filter(Boolean).pop() || normalizedFallbackDir,
+        path: normalizedFallbackDir,
       },
       entries: [],
     };
   }
 
+  const normalizedFallbackDir = normalizeCadDirectory(fallbackDir);
   return {
     ...manifest,
     root: manifest.root && typeof manifest.root === "object"
       ? manifest.root
       : {
-          dir: fallbackDir,
-          name: fallbackDir.split("/").filter(Boolean).pop() || fallbackDir,
-          path: fallbackDir,
+          dir: normalizedFallbackDir,
+          name: normalizedFallbackDir.split("/").filter(Boolean).pop() || normalizedFallbackDir,
+          path: normalizedFallbackDir,
         },
     entries: Array.isArray(manifest.entries) ? manifest.entries : [],
   };
@@ -53,6 +60,10 @@ function publishCadManifest(nextManifest) {
   for (const listener of listeners) {
     listener();
   }
+}
+
+function currentSnapshotMatchesDirectory(dir = readCadDirectoryParam()) {
+  return normalizeCadDirectory(currentSnapshot.manifest?.root?.dir) === normalizeCadDirectory(dir);
 }
 
 async function refreshCadCatalog() {
@@ -96,9 +107,11 @@ if (import.meta.hot) {
 }
 
 if (typeof window !== "undefined" && import.meta.env.DEV) {
-  refreshCadCatalog().catch((error) => {
-    console.warn("Failed to load CAD catalog", error);
-  });
+  if (!currentSnapshotMatchesDirectory()) {
+    refreshCadCatalog().catch((error) => {
+      console.warn("Failed to load CAD catalog", error);
+    });
+  }
   window.addEventListener("popstate", () => {
     refreshCadCatalog().catch((error) => {
       console.warn("Failed to refresh CAD catalog", error);

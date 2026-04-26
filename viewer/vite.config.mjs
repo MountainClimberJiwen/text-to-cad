@@ -155,9 +155,7 @@ function cadCatalogPlugin() {
       if (id !== resolvedVirtualId) {
         return null;
       }
-      const catalog = resolvedConfig?.command === "serve"
-        ? emptyCatalog(buildCadDir)
-        : readCadCatalog(buildCadDir);
+      const catalog = readCadCatalog(buildCadDir);
       return `export default ${JSON.stringify(catalog)};`;
     },
     configureServer(server) {
