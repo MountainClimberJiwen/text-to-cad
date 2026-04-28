@@ -1,0 +1,4 @@
+interface:
+  display_name: "Industrial CAD"
+  short_description: "Industrial automation assembly design with parametric standard devices and line layout templates."
+  default_prompt: "Use $industrial-cad to design industrial automation line assemblies, reference standard PLC/motor/pump/cylinder/sensor devices, and apply mechanical constraints, tolerances, and pneumatic/electrical interfaces without assuming a harness root."
