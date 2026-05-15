@@ -1,0 +1,38 @@
+{
+  "name": "vibratory_feeder",
+  "base_frame": {
+    "origin": [0, 0, 0],
+    "z_up": true
+  },
+  "parts": [
+    {"id": "BasePlate", "file": "models/automation_parts/feeder_base.step", "fixed": true},
+    {"id": "VibratingBowl", "file": "models/automation_parts/vibrating_bowl.step"},
+    {"id": "TransferGantry", "file": "models/automation_parts/transfer_column.step"},
+    {"id": "WorkPlatform", "file": "models/automation_parts/work_platform.step"},
+    {"id": "PushSlide", "file": "models/automation_parts/push_slide.step"},
+    {"id": "GuideSlide", "file": "models/automation_parts/linear_guide.step"},
+    {"id": "AirPump", "file": "models/automation_parts/air_pump.step"}
+  ],
+  "constraints": [
+    {"type": "Fix", "part": "BasePlate"},
+    {"type": "PlaneCoincident", "part_a": "VibratingBowl", "face_a": "bottom", "part_b": "BasePlate", "face_b": "top"},
+    {"type": "Distance", "part_a": "VibratingBowl", "point_a": "origin", "part_b": "BasePlate", "point_b": "origin", "axis": "x", "value": 380},
+    {"type": "Distance", "part_a": "VibratingBowl", "point_a": "origin", "part_b": "BasePlate", "point_b": "origin", "axis": "y", "value": 50},
+    {"type": "Rotation", "part": "VibratingBowl", "axis": "z", "value": 180},
+    {"type": "PlaneCoincident", "part_a": "TransferGantry", "face_a": "bottom", "part_b": "BasePlate", "face_b": "top"},
+    {"type": "CenterOfMass", "part_a": "TransferGantry", "part_b": "BasePlate", "axis": "x"},
+    {"type": "Distance", "part_a": "TransferGantry", "point_a": "origin", "part_b": "BasePlate", "point_b": "origin", "axis": "y", "value": -120},
+    {"type": "PlaneCoincident", "part_a": "WorkPlatform", "face_a": "bottom", "part_b": "BasePlate", "face_b": "top"},
+    {"type": "Distance", "part_a": "WorkPlatform", "point_a": "origin", "part_b": "BasePlate", "point_b": "origin", "axis": "x", "value": 240},
+    {"type": "Distance", "part_a": "WorkPlatform", "point_a": "origin", "part_b": "BasePlate", "point_b": "origin", "axis": "y", "value": 300},
+    {"type": "PlaneCoincident", "part_a": "PushSlide", "face_a": "bottom", "part_b": "BasePlate", "face_b": "top"},
+    {"type": "Distance", "part_a": "PushSlide", "point_a": "origin", "part_b": "BasePlate", "point_b": "origin", "axis": "x", "value": -60},
+    {"type": "Distance", "part_a": "PushSlide", "point_a": "origin", "part_b": "BasePlate", "point_b": "origin", "axis": "y", "value": 50},
+    {"type": "PlaneCoincident", "part_a": "GuideSlide", "face_a": "bottom", "part_b": "BasePlate", "face_b": "top"},
+    {"type": "Distance", "part_a": "GuideSlide", "point_a": "origin", "part_b": "BasePlate", "point_b": "origin", "axis": "x", "value": -80},
+    {"type": "Distance", "part_a": "GuideSlide", "point_a": "origin", "part_b": "BasePlate", "point_b": "origin", "axis": "y", "value": 50},
+    {"type": "PlaneCoincident", "part_a": "AirPump", "face_a": "bottom", "part_b": "BasePlate", "face_b": "top"},
+    {"type": "Distance", "part_a": "AirPump", "point_a": "origin", "part_b": "BasePlate", "point_b": "origin", "axis": "x", "value": -450},
+    {"type": "Distance", "part_a": "AirPump", "point_a": "origin", "part_b": "BasePlate", "point_b": "origin", "axis": "y", "value": -250}
+  ]
+}
