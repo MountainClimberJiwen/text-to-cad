@@ -1,0 +1,107 @@
+{
+  "task_id": "pneumatic_clamp_lib_001",
+  "name": "Pneumatic clamp with library parts",
+  "parts": [
+    {
+      "id": "base",
+      "name": "Mounting Base",
+      "shape": {
+        "type": "library",
+        "params": {
+          "ref": "base_plate",
+          "params": {"width": 120, "depth": 80, "thickness": 8, "mounting_hole_diameter": 5, "hole_spacing": 25}
+        }
+      },
+      "initial_transform": {
+        "position": {"x": 0, "y": 0, "z": 0},
+        "rotation": {"axis": {"x": 0, "y": 0, "z": 1}, "angle_deg": 0}
+      }
+    },
+    {
+      "id": "cylinder",
+      "name": "Air Cylinder",
+      "shape": {
+        "type": "library",
+        "params": {
+          "ref": "pneumatic_cylinder",
+          "params": {"bore": 20, "stroke": 40, "rod_diameter": 8, "mounting": "foot"}
+        }
+      },
+      "initial_transform": {
+        "position": {"x": 0, "y": 0, "z": 0},
+        "rotation": {"axis": {"x": 0, "y": 0, "z": 1}, "angle_deg": 0}
+      }
+    },
+    {
+      "id": "rod",
+      "name": "Piston Rod",
+      "shape": {
+        "type": "cylinder",
+        "params": {"radius": 4, "height": 20}
+      },
+      "initial_transform": {
+        "position": {"x": 0, "y": 0, "z": 0},
+        "rotation": {"axis": {"x": 0, "y": 0, "z": 1}, "angle_deg": 0}
+      }
+    },
+    {
+      "id": "jaw",
+      "name": "Gripper Jaw",
+      "shape": {
+        "type": "library",
+        "params": {
+          "ref": "gripper_jaw",
+          "params": {"width": 30, "height": 20, "depth": 10, "grip_angle": 15}
+        }
+      },
+      "initial_transform": {
+        "position": {"x": 0, "y": 0, "z": 0},
+        "rotation": {"axis": {"x": 0, "y": 0, "z": 1}, "angle_deg": 0}
+      }
+    }
+  ],
+  "constraints": [
+    {
+      "type": "place_at",
+      "part1": "base",
+      "part2": "base",
+      "params": {}
+    },
+    {
+      "type": "align_face",
+      "part1": "base",
+      "part2": "cylinder",
+      "params": {"face1": "top", "face2": "bottom", "offset": 0}
+    },
+    {
+      "type": "coaxial",
+      "part1": "cylinder",
+      "part2": "rod",
+      "params": {"axis1": "outer_cylinder", "axis2": "outer_cylinder"}
+    },
+    {
+      "type": "align_face",
+      "part1": "cylinder",
+      "part2": "rod",
+      "params": {"face1": "top", "face2": "bottom", "offset": 0}
+    },
+    {
+      "type": "coaxial",
+      "part1": "rod",
+      "part2": "jaw",
+      "params": {"axis1": "outer_cylinder", "axis2": "outer_cylinder"}
+    },
+    {
+      "type": "align_face",
+      "part1": "rod",
+      "part2": "jaw",
+      "params": {"face1": "top", "face2": "bottom", "offset": 0}
+    }
+  ],
+  "outputs": {
+    "step": "assembly.step",
+    "report": "report.json"
+  },
+  "review_each_step": true,
+  "auto_order": true
+}

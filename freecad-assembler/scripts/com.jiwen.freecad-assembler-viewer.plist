@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.jiwen.freecad-assembler-viewer</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/jiwen/.nvm/versions/node/v22.14.0/bin/npm</string>
+    <string>run</string>
+    <string>start</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>NODE_ENV</key>
+    <string>production</string>
+    <key>PATH</key>
+    <string>/Users/jiwen/.nvm/versions/node/v22.14.0/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/jiwen/PycharmProjects/freecad-assembler</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/jiwen/Library/Logs/freecad-assembler-viewer.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/jiwen/Library/Logs/freecad-assembler-viewer.error.log</string>
+</dict>
+</plist>

@@ -1,0 +1,26 @@
+{
+  "name": "freecad-assembler-viewer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch server.js",
+    "build": "vite build",
+    "start": "NODE_ENV=production node server.js",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "lucide-vue-next": "^1.0.0",
+    "mammoth": "^1.12.0",
+    "multer": "^2.1.1",
+    "occt-import-js": "^0.0.23",
+    "three": "^0.176.0",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.4",
+    "playwright": "^1.58.2",
+    "vite": "^6.2.6"
+  }
+}

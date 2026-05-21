@@ -1,0 +1,30 @@
+# Local environments
+.venv/
+.env
+
+# Python
+__pycache__/
+*.egg-info/
+*.pyc
+
+# Node
+node_modules/
+dist/
+
+# macOS / Editor
+.DS_Store
+*.swp
+*.tmp
+
+# Temporary / runtime
+tmp/
+checkpoint/
+
+# CAD artifacts (generated — source Python files are tracked instead)
+*.step
+*.stl
+*.urdf
+
+# FreeCAD backups
+*.FCBak
+*.FCStd
