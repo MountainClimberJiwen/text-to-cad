@@ -1,0 +1,39 @@
+{
+  "joints": [
+    {
+      "part": "HorizontalTransferCylinder",
+      "type": "prismatic",
+      "axis": [1, 0, 0],
+      "limits": [-100, 100],
+      "description": "水平搬运气缸，沿门架横梁X方向往复"
+    },
+    {
+      "part": "VerticalTransferCylinder",
+      "type": "prismatic",
+      "axis": [0, 0, -1],
+      "limits": [0, 200],
+      "description": "竖直搬运气缸，沿Z方向升降（活塞杆朝下）"
+    },
+    {
+      "part": "ProductGripper",
+      "type": "prismatic",
+      "axis": [0, 1, 0],
+      "limits": [-8, 8],
+      "description": "夹爪开合，沿Y方向"
+    },
+    {
+      "part": "HorizontalPushCylinder",
+      "type": "prismatic",
+      "axis": [1, 0, 0],
+      "limits": [0, 80],
+      "description": "水平推料气缸，沿X方向推动滑块"
+    },
+    {
+      "part": "GuideCylinder",
+      "type": "prismatic",
+      "axis": [0, 0, 1],
+      "limits": [0, 50],
+      "description": "导向定位气缸，竖直上下挡料"
+    }
+  ]
+}

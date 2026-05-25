@@ -1,0 +1,23 @@
+Missing files: 196 / 515
+  FAIL: cli-anything-freecad/cli_anything/freecad/__main__.py: The read operation timed out
+  FAIL: cli-anything-freecad/cli_anything/freecad/core/assembly.py: <urlopen error _ssl.c:999: The handshake operation timed out>
+  FAIL: cli-anything-freecad/cli_anything/freecad/core/mesh.py: <urlopen error [Errno 104] Connection reset by peer>
+  FAIL: cli-anything-freecad/cli_anything/freecad/core/motion.py: The read operation timed out
+  FAIL: cli-anything-freecad/cli_anything/freecad/utils/freecad_backend.py: The read operation timed out
+  FAIL: freecad-assembler/framework/assembly_builder.py: <urlopen error _ssl.c:999: The handshake operation timed out>
+  FAIL: freecad-assembler/framework/fasteners.py: <urlopen error _ssl.c:999: The handshake operation timed out>
+  FAIL: freecad-assembler/framework/generator.py: <urlopen error _ssl.c:999: The handshake operation timed out>
+  FAIL: freecad-assembler/framework/ontology.py: The read operation timed out
+  FAIL: freecad-assembler/framework/solver.py: <urlopen error _ssl.c:999: The handshake operation timed out>
+  FAIL: freecad-assembler/framework/templates.py: The read operation timed out
+  FAIL: freecad-assembler/kimi_integration.py: <urlopen error _ssl.c:999: The handshake operation timed out>
+  FAIL: freecad-assembler/llm_http.py: <urlopen error _ssl.c:999: The handshake operation timed out>
+  FAIL: freecad-assembler/models/preview/poc_layout.json: The read operation timed out
+  FAIL: freecad-assembler/models/preview/poc_mesh_data.json: The read operation timed out
+  FAIL: freecad-assembler/models/preview/poc_station.png: The read operation timed out
+  FAIL: freecad-assembler/models/preview/poc_v2_station.png: <urlopen error _ssl.c:999: The handshake operation timed out>
+  FAIL: freecad-assembler/models/preview/vibration_station.png: <urlopen error [Errno 113] No route to host>
+  FAIL: models/assemblies/pick_place_arm_v3.py: The read operation timed out
+  FAIL: models/assemblies/vibratory_feeder_assembly_freecad.step: <urlopen error _ssl.c:999: The handshake operation timed out>
+Downloaded: 176/196
+DONE

@@ -1,0 +1,52 @@
+[
+  {
+    "pair": ["PushSlide", "GuideSlide"],
+    "reason": "sliding fit — slider embedded in linear guide rail",
+    "type": "fit"
+  },
+  {
+    "pair": ["BasePlate", "HorizontalPushCylinder"],
+    "reason": "mounting base embedded in base plate",
+    "type": "mount"
+  },
+  {
+    "pair": ["BasePlate", "SensorPick"],
+    "reason": "sensor mounting base embedded in base plate",
+    "type": "mount"
+  },
+  {
+    "pair": ["TransferGantry", "HorizontalTransferCylinder"],
+    "reason": "cylinder mounted on gantry cross-beam",
+    "type": "mount"
+  },
+  {
+    "pair": ["TransferGantry", "VerticalTransferCylinder"],
+    "reason": "cylinder mounted on gantry vertical slide",
+    "type": "mount"
+  },
+  {
+    "pair": ["TransferGantry", "SensorHome"],
+    "reason": "sensor mounted on gantry frame",
+    "type": "mount"
+  },
+  {
+    "pair": ["HorizontalPushCylinder", "PushCylinderBracket"],
+    "reason": "cylinder mounted on bracket",
+    "type": "mount"
+  },
+  {
+    "pair": ["PushCylinderBracket", "GuideSlide"],
+    "reason": "bracket mounted on guide slide base",
+    "type": "mount"
+  },
+  {
+    "pair": ["GuideCylinder", "GuideCylinderBracket"],
+    "reason": "cylinder mounted on bracket",
+    "type": "mount"
+  },
+  {
+    "pair": ["GuideCylinderBracket", "SensorPick"],
+    "reason": "sensor mounted on bracket",
+    "type": "mount"
+  }
+]

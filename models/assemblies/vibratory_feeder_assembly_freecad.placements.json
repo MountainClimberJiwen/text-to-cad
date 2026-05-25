@@ -1,0 +1,93 @@
+{
+  "BasePlate": {
+    "base": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "rotation_axis": [
+      0.0,
+      0.0,
+      1.0
+    ],
+    "rotation_angle": 0.0
+  },
+  "VibratingBowl": {
+    "base": [
+      380.0,
+      50.0,
+      30.0
+    ],
+    "rotation_axis": [
+      0.0,
+      0.0,
+      1.0
+    ],
+    "rotation_angle": 180.0
+  },
+  "TransferGantry": {
+    "base": [
+      0.0,
+      -120.0,
+      30.0
+    ],
+    "rotation_axis": [
+      0.0,
+      0.0,
+      1.0
+    ],
+    "rotation_angle": 0.0
+  },
+  "WorkPlatform": {
+    "base": [
+      240.0,
+      300.0,
+      30.0
+    ],
+    "rotation_axis": [
+      0.0,
+      0.0,
+      1.0
+    ],
+    "rotation_angle": 0.0
+  },
+  "PushSlide": {
+    "base": [
+      -60.0,
+      50.0,
+      30.0
+    ],
+    "rotation_axis": [
+      0.0,
+      0.0,
+      1.0
+    ],
+    "rotation_angle": 0.0
+  },
+  "GuideSlide": {
+    "base": [
+      -80.0,
+      50.0,
+      30.0
+    ],
+    "rotation_axis": [
+      0.0,
+      0.0,
+      1.0
+    ],
+    "rotation_angle": 0.0
+  },
+  "AirPump": {
+    "base": [
+      -450.0,
+      -250.0,
+      88.75
+    ],
+    "rotation_axis": [
+      0.0,
+      0.0,
+      1.0
+    ],
+    "rotation_angle": 0.0
+  }
+}
