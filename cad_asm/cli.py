@@ -5,7 +5,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from cad_asm.commands import init, step, verify, export, lib
+from cad_asm.commands import init, step, verify, export, lib, check
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -41,6 +41,18 @@ def main(argv: list[str] | None = None) -> int:
     # lib-list
     p_lib_list = sub.add_parser("lib-list", help="List all available standard parts")
 
+    # check
+    p_check = sub.add_parser("check", help="Run three-view orthographic check on the assembly checkpoint")
+    p_check.add_argument("--workspace", "-w", type=Path, default=Path("."), help="Workspace directory")
+    p_check.add_argument("--out-dir", "-o", type=Path, default=None, help="Output directory for check images (default: workspace/checks)")
+    p_check.add_argument("--views", default=",".join(check.ORTH_VIEWS), help="Comma-separated views")
+    p_check.add_argument("--width", type=int, default=check.DEFAULT_WIDTH, help="Image width")
+    p_check.add_argument("--height", type=int, default=check.DEFAULT_HEIGHT, help="Image height")
+    p_check.add_argument("--color", default=",".join(str(c) for c in check.DEFAULT_MODEL_COLOR), help="Model RGB")
+    p_check.add_argument("--background", default=",".join(str(c) for c in check.DEFAULT_BACKGROUND_COLOR), help="Background RGB")
+    p_check.add_argument("--no-edges", action="store_true", help="Disable feature edges")
+    p_check.add_argument("--no-axes", action="store_true", help="Disable orientation axes")
+
     args = parser.parse_args(argv)
 
     if args.command == "init":
@@ -55,6 +67,25 @@ def main(argv: list[str] | None = None) -> int:
         return lib.run_search(args.query, args.threshold, args.top_k)
     if args.command == "lib-list":
         return lib.run_list()
+
+    if args.command == "check":
+        try:
+            model_color = check.parse_rgb(args.color)
+            background_color = check.parse_rgb(args.background)
+        except ValueError as exc:
+            parser.error(str(exc))
+        views = [v.strip() for v in args.views.split(",") if v.strip()]
+        return check.run(
+            args.workspace,
+            out_dir=args.out_dir,
+            views=views,
+            width=args.width,
+            height=args.height,
+            model_color=model_color,
+            background_color=background_color,
+            edges=not args.no_edges,
+            axes=not args.no_axes,
+        )
 
     parser.print_help()
     return 1
