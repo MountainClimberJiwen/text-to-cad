@@ -28,6 +28,7 @@ Run with the Python environment for the project or workspace. If the environment
 - DXF sidecars: `scripts/gen_dxf`
 - Prompt refs and STEP facts: `scripts/cadref`
 - Verification PNGs: `scripts/snapshot`
+- Three-view orthographic check: `scripts/ortho_check`
 
 The command interfaces are target-explicit. The STEP tools accept generated Python sources or direct STEP/STP files. `gen_dxf` accepts Python sources that define `gen_dxf()`. `cadref` and `snapshot` use the input shapes described in their references. Use `--summary` where supported. Direct STEP/STP targets can receive import metadata as CLI flags on `gen_step_part` and `gen_step_assembly`.
 
@@ -42,4 +43,5 @@ The command interfaces are target-explicit. The STEP tools accept generated Pyth
 - Validation and snapshots: `references/validation-and-snapshots.md`
 - `@cad[...]` inspection: `references/cadref.md`
 - Snapshot rendering: `references/snapshot.md`
+- Three-view orthographic check: `references/ortho-check.md`
 - Shared implementation notes: `references/common-library.md`

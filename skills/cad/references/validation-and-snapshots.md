@@ -14,6 +14,7 @@ Prefer non-visual checks first when they can prove the result:
 - `cadref inspect` when the task depends on stable part, occurrence, body, face, edge, or corner refs
 - `cadref planes` for major coplanar plane groups
 - `cadref diff` for before/after selector-level geometry or topology changes
+- `ortho_check` for standardized front/top/right orthographic snapshots and geometry sanity checks
 
 Add visual review for complex geometry, orientation-dependent changes, broad shape edits across multiple faces, or whenever numeric checks do not make the result obvious.
 
@@ -29,6 +30,15 @@ Use `scripts/snapshot` when an image is the cheapest way to answer the review qu
 - For generated assembly review PNGs, render the generated assembly GLB, such as `path/to/.assembly.step/model.glb`. If that GLB is missing or stale, first run the explicit `gen_step_assembly path/to/assembly.py` target to create it, then snapshot the generated GLB.
 - `snapshot` does not support Python assembly source inputs. If you need an assembly review image, regenerate the explicit assembly target and render its generated GLB.
 - For very large meshes or assemblies, skip image generation and rely on non-visual checks unless the user specifically needs a render.
+
+## Three-View Check
+
+Use `scripts/ortho_check` for standardized post-generation validation.
+
+- Run it after `gen_step_part` or `gen_step_assembly` to verify the result with front/top/right views.
+- It performs automatic sanity checks: non-empty mesh, positive bbox, non-zero face/edge counts.
+- It emits a structured JSON report suitable for CI pipelines.
+- See `references/ortho-check.md` for full command surface and integration examples.
 
 ## Output Handling
 
