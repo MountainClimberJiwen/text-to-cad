@@ -50,6 +50,9 @@ class PartCatalogEntry:
 # ---------------------------------------------------------------------------
 
 CATALOG: dict[str, PartCatalogEntry] = {
+    # -----------------------------------------------------------------------
+    # Procedural parts
+    # -----------------------------------------------------------------------
     "pneumatic_cylinder": PartCatalogEntry(
         ref="pneumatic_cylinder",
         description=(
@@ -113,6 +116,204 @@ CATALOG: dict[str, PartCatalogEntry] = {
             "leg_width": ParamInfo("float", "Leg width (mm)", 20.0),
             "thickness": ParamInfo("float", "Material thickness (mm)", 3.0),
         },
+    ),
+    # -----------------------------------------------------------------------
+    # STEP-based standard parts  (pneumatic)
+    # -----------------------------------------------------------------------
+    "step_air_pump": PartCatalogEntry(
+        ref="step_air_pump",
+        description="Standard air pump / vacuum generator unit.",
+        keywords=["air pump", "vacuum", "气泵", "真空泵", "pneumatic pump"],
+        params={},
+    ),
+    "step_pneumatic_cylinder": PartCatalogEntry(
+        ref="step_pneumatic_cylinder",
+        description="Standard pneumatic cylinder (STEP model).",
+        keywords=["cylinder", "pneumatic", "air", "actuator", "气缸", "气压缸", "气动"],
+        params={},
+    ),
+    "step_large_cylinder": PartCatalogEntry(
+        ref="step_large_cylinder",
+        description="Large-bore pneumatic cylinder (STEP model).",
+        keywords=["cylinder", "large", "pneumatic", "大气缸", "big cylinder"],
+        params={},
+    ),
+    "step_solenoid_valve": PartCatalogEntry(
+        ref="step_solenoid_valve",
+        description="Pneumatic solenoid directional control valve.",
+        keywords=["solenoid", "valve", "电磁阀", "换向阀", "pneumatic valve"],
+        params={},
+    ),
+    "step_air_tube_6mm": PartCatalogEntry(
+        ref="step_air_tube_6mm",
+        description="6 mm pneumatic air tube / hose segment.",
+        keywords=["air tube", "hose", "气管", "6mm", "pneumatic tube"],
+        params={},
+    ),
+    # -----------------------------------------------------------------------
+    # STEP-based standard parts  (electrical)
+    # -----------------------------------------------------------------------
+    "step_plc_module": PartCatalogEntry(
+        ref="step_plc_module",
+        description="PLC control module / programmable logic controller.",
+        keywords=["plc", "controller", "PLC", "控制器", "programmable"],
+        params={},
+    ),
+    "step_servo_motor": PartCatalogEntry(
+        ref="step_servo_motor",
+        description="AC servo motor with encoder feedback.",
+        keywords=["servo", "motor", "伺服电机", "马达", "servo motor"],
+        params={},
+    ),
+    "step_terminal_block": PartCatalogEntry(
+        ref="step_terminal_block",
+        description="DIN-rail terminal block for wire termination.",
+        keywords=["terminal", "block", "接线端子", "端子排", "terminal block"],
+        params={},
+    ),
+    "step_din_rail": PartCatalogEntry(
+        ref="step_din_rail",
+        description="Standard DIN rail mounting rail (35 mm top-hat).",
+        keywords=["din rail", "rail", "导轨", "DIN导轨", "mounting rail"],
+        params={},
+    ),
+    "step_photo_sensor": PartCatalogEntry(
+        ref="step_photo_sensor",
+        description="Photoelectric proximity / through-beam sensor.",
+        keywords=["photo sensor", "photoelectric", "光电传感器", "sensor", "光电开关"],
+        params={},
+    ),
+    "step_proximity_sensor": PartCatalogEntry(
+        ref="step_proximity_sensor",
+        description="Inductive proximity sensor (M8 / M12 cylinder type).",
+        keywords=["proximity", "sensor", "接近开关", "感应器", "inductive"],
+        params={},
+    ),
+    "step_sensor_cable": PartCatalogEntry(
+        ref="step_sensor_cable",
+        description="Pre-wired sensor cable with M8/M12 connector.",
+        keywords=["sensor cable", "cable", "传感器线缆", "连接线", "wire"],
+        params={},
+    ),
+    # -----------------------------------------------------------------------
+    # STEP-based standard parts  (mechanical)
+    # -----------------------------------------------------------------------
+    "step_gripper": PartCatalogEntry(
+        ref="step_gripper",
+        description="Pneumatic / electric gripper assembly (full body).",
+        keywords=["gripper", "夹爪", "抓手", "夹具", "grip", "clamp"],
+        params={},
+    ),
+    "step_linear_guide": PartCatalogEntry(
+        ref="step_linear_guide",
+        description="Linear motion guide rail with block (LM guide).",
+        keywords=["linear guide", "guide", "直线导轨", "滑轨", "LM guide"],
+        params={},
+    ),
+    "step_push_slide": PartCatalogEntry(
+        ref="step_push_slide",
+        description="Pneumatic push slide / slide table actuator.",
+        keywords=["push slide", "slide", "滑台", "滑台气缸", "slide table"],
+        params={},
+    ),
+    "step_roller": PartCatalogEntry(
+        ref="step_roller",
+        description="Conveyor idle roller / pulley wheel.",
+        keywords=["roller", "滚筒", "滚轮", "pulley", "conveyor roller"],
+        params={},
+    ),
+    "step_vibrating_bowl": PartCatalogEntry(
+        ref="step_vibrating_bowl",
+        description="Vibratory bowl feeder base unit.",
+        keywords=["vibrating bowl", "feeder", "振动盘", "bowl feeder", "振动送料"],
+        params={},
+    ),
+    "step_feeder_base": PartCatalogEntry(
+        ref="step_feeder_base",
+        description="Linear vibratory feeder base / drive unit.",
+        keywords=["feeder base", "feeder", "送料器底座", "linear feeder", "vibratory"],
+        params={},
+    ),
+    "step_transfer_column": PartCatalogEntry(
+        ref="step_transfer_column",
+        description="Vertical transfer column / lifting mast.",
+        keywords=["transfer column", "column", "立柱", "升降柱", "mast"],
+        params={},
+    ),
+    "step_work_platform": PartCatalogEntry(
+        ref="step_work_platform",
+        description="Adjustable work platform / table top.",
+        keywords=["work platform", "platform", "工作台", "平台", "table"],
+        params={},
+    ),
+    # -----------------------------------------------------------------------
+    # STEP-based standard parts  (structural)
+    # -----------------------------------------------------------------------
+    "step_frame_base": PartCatalogEntry(
+        ref="step_frame_base",
+        description="Machine frame base / chassis foundation.",
+        keywords=["frame base", "frame", "机架底座", "底座", "chassis"],
+        params={},
+    ),
+    "step_mounting_plate": PartCatalogEntry(
+        ref="step_mounting_plate",
+        description="Large mounting plate with hole pattern.",
+        keywords=["mounting plate", "plate", "安装板", "底板", "mount"],
+        params={},
+    ),
+    "step_small_base_plate": PartCatalogEntry(
+        ref="step_small_base_plate",
+        description="Compact base plate for small fixtures.",
+        keywords=["small base plate", "plate", "小底板", "底板", "base"],
+        params={},
+    ),
+    "step_cylinder_bracket": PartCatalogEntry(
+        ref="step_cylinder_bracket",
+        description="Bracket for mounting pneumatic cylinders.",
+        keywords=["cylinder bracket", "bracket", "气缸支架", "支架", "mount"],
+        params={},
+    ),
+    "step_roller_bracket": PartCatalogEntry(
+        ref="step_roller_bracket",
+        description="Bracket for mounting conveyor rollers.",
+        keywords=["roller bracket", "bracket", "滚筒支架", "支架", "roller"],
+        params={},
+    ),
+    # -----------------------------------------------------------------------
+    # STEP-based standard parts  (fasteners)
+    # -----------------------------------------------------------------------
+    "step_bolt_m6x20": PartCatalogEntry(
+        ref="step_bolt_m6x20",
+        description="Hex socket head bolt M6 x 20 mm.",
+        keywords=["bolt", "m6", "螺栓", "螺丝", "hex bolt"],
+        params={},
+    ),
+    "step_bolt_m8x25": PartCatalogEntry(
+        ref="step_bolt_m8x25",
+        description="Hex socket head bolt M8 x 25 mm.",
+        keywords=["bolt", "m8", "螺栓", "螺丝", "hex bolt"],
+        params={},
+    ),
+    "step_hex_nut_m6": PartCatalogEntry(
+        ref="step_hex_nut_m6",
+        description="Hex nut M6 (DIN 934).",
+        keywords=["nut", "m6", "螺母", "六角螺母", "hex nut"],
+        params={},
+    ),
+    "step_flat_washer_m6": PartCatalogEntry(
+        ref="step_flat_washer_m6",
+        description="Flat washer M6 (DIN 125).",
+        keywords=["washer", "m6", "垫圈", "平垫", "flat washer"],
+        params={},
+    ),
+    # -----------------------------------------------------------------------
+    # STEP-based standard parts  (conveyor)
+    # -----------------------------------------------------------------------
+    "step_cable_tray_channel": PartCatalogEntry(
+        ref="step_cable_tray_channel",
+        description="Cable tray / wire duct channel section.",
+        keywords=["cable tray", "channel", "线槽", "电缆桥架", "wire duct"],
+        params={},
     ),
 }
 

@@ -9,17 +9,20 @@ from typing import Any
 
 from build123d import (
     Box,
+    Compound,
     Cone,
     Cylinder,
     Location,
     Part,
     Rotation as B3dRotation,
     Shape,
+    Solid,
     Sphere,
     Torus,
     Vector,
     export_stl,
     export_step,
+    import_step,
 )
 from build123d import GeomType
 from OCP.gp import gp_Pnt
@@ -61,7 +64,20 @@ def load_part(source: PartSource | None, workspace_root: Path, shape: ShapeDef |
             script_path = Path(source.path)
         return _load_python_part(script_path)
 
-    if source.type in ("step", "stl"):
+    if source.type == "step":
+        if not source.path:
+            raise ValueError("STEP part source requires `path`")
+        step_path = workspace_root / source.path
+        if not step_path.exists():
+            step_path = Path(source.path)
+        shape = import_step(str(step_path))
+        if isinstance(shape, Part):
+            return shape
+        if isinstance(shape, (Solid, Compound)):
+            return Part([shape])
+        return Part(shape)
+
+    if source.type == "stl":
         raise NotImplementedError(f"Source type '{source.type}' not yet implemented in MVP")
 
     if source.type == "build123d":
