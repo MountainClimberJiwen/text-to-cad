@@ -13,11 +13,13 @@ def run(
     out_dir: Path | None = None,
     extra_instructions: str | None = None,
     dry_run: bool = False,
+    provider: str | None = None,
 ) -> int:
     result = run_vlm_review(
         workspace,
         out_dir=out_dir,
         extra_instructions=extra_instructions,
         dry_run=dry_run,
+        provider=provider,
     )
     return 0 if result.get("ok") else 1

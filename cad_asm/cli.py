@@ -59,6 +59,7 @@ def main(argv: list[str] | None = None) -> int:
     p_vlm.add_argument("--out-dir", type=Path, default=None, dest="vlm_out_dir", help="Output directory (default: workspace/checks)")
     p_vlm.add_argument("--instructions", type=str, default=None, help="Extra prompt instructions for the VLM")
     p_vlm.add_argument("--dry-run", action="store_true", help="Skip VLM call and return mock response")
+    p_vlm.add_argument("--provider", choices=["kimi", "doubao"], default=None, help="VLM provider (default: kimi, auto-fallback to doubao)")
 
     args = parser.parse_args(argv)
 
@@ -100,6 +101,7 @@ def main(argv: list[str] | None = None) -> int:
             out_dir=args.vlm_out_dir,
             extra_instructions=args.instructions,
             dry_run=args.dry_run,
+            provider=args.provider,
         )
 
     parser.print_help()

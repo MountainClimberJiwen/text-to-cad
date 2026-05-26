@@ -49,24 +49,69 @@ def _build_review_prompt(task_desc: str, extra_instructions: str | None = None) 
         base += f"\n## 额外要求\n{extra_instructions}\n"
 
     base += """
-## 输出格式（极其重要）
+## 输出格式
 
-你必须分两步输出：
-1. 先在 reasoning 中进行完整分析。
-2. **然后在最终答案（content）中只输出一个严格合法的 JSON 对象**，不要有任何其他文字、不要加 markdown 说明、不要加 ``` 代码块标记。
+先在 reasoning 中进行分析，然后在最终答案中只输出一个 JSON 对象，不要添加其他文字。
 
-content 中输出的 JSON 必须严格如下格式：
-
-{"passed": true, "confidence": 0.95, "summary": "...", "issues": [], "suggestions": []}
-
-字段说明：
-- passed: boolean，true 表示通过，false 表示不通过
-- confidence: 0.0-1.0 的置信度
-- summary: 总体评价，中文，1-2句话
-- issues: 问题列表，每个问题包含 severity(critical/warning/info)、description(中文)、view(front/top/right/all)
-- suggestions: 修改建议列表，中文
+JSON 字段：
+- passed: boolean
+- confidence: float (0.0-1.0)
+- summary: 中文总体评价，1-2句话
+- issues: [{"severity": "critical|warning|info", "description": "中文", "view": "front|top|right|all"}]
+- suggestions: ["中文建议1", "中文建议2"]
 """
     return base
+
+
+def _merge_views(image_paths: list[Path], labels: tuple[str, ...] = ("front", "top", "right")) -> Path:
+    """Merge orthographic views into a single horizontal image with labels.
+
+    Images are downscaled to reduce VLM upload latency.
+    """
+    from PIL import Image, ImageDraw, ImageFont
+
+    MAX_HEIGHT = 600  # Downscale tall views to keep payload small
+
+    images_raw = [Image.open(p) for p in image_paths]
+    images: list[Image.Image] = []
+    for img in images_raw:
+        if img.height > MAX_HEIGHT:
+            ratio = MAX_HEIGHT / img.height
+            new_w = int(img.width * ratio)
+            images.append(img.resize((new_w, MAX_HEIGHT), Image.Resampling.LANCZOS))
+        else:
+            images.append(img)
+
+    max_h = max(img.height for img in images)
+    total_w = sum(img.width for img in images)
+    label_h = 36
+    gap = 16
+    total_w += gap * (len(images) - 1)
+
+    merged = Image.new("RGB", (total_w, max_h + label_h), (255, 255, 255))
+    draw = ImageDraw.Draw(merged)
+
+    try:
+        font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 22)
+    except Exception:
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 22)
+        except Exception:
+            font = ImageFont.load_default()
+
+    x = 0
+    for idx, img in enumerate(images):
+        label = labels[idx] if idx < len(labels) else f"view_{idx}"
+        merged.paste(img, (x, label_h))
+        bbox = draw.textbbox((0, 0), label, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_x = x + (img.width - text_w) // 2
+        draw.text((text_x, 6), label, fill=(0, 0, 0), font=font)
+        x += img.width + gap
+
+    out_path = Path(image_paths[0]).parent / "merged_views.png"
+    merged.save(out_path, "PNG")
+    return out_path
 
 
 def _build_messages(
@@ -75,17 +120,15 @@ def _build_messages(
 ) -> list[dict[str, Any]]:
     from cad_asm.core.vlm_client import encode_image
 
-    content: list[dict[str, Any]] = [{"type": "text", "text": prompt_text}]
-    view_labels = ["front", "top", "right"]
-    for idx, path in enumerate(image_paths):
-        label = view_labels[idx] if idx < len(view_labels) else f"view_{idx}"
-        b64 = encode_image(path)
-        content.append({
-            "type": "image_url",
-            "image_url": {"url": f"data:image/png;base64,{b64}"},
-        })
-        # Insert label text after each image so the model knows which view is which
-        content.append({"type": "text", "text": f"↑ 这是 {label} 视图"})
+    # Merge three views into one image to reduce VLM latency
+    merged_path = _merge_views(image_paths)
+    b64 = encode_image(merged_path)
+
+    content: list[dict[str, Any]] = [
+        {"type": "text", "text": prompt_text},
+        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
+        {"type": "text", "text": "↑ 上图从左到右依次为：front（正视图）、top（俯视图）、right（右视图）"},
+    ]
     return [{"role": "user", "content": content}]
 
 
@@ -95,6 +138,7 @@ def run_vlm_review(
     out_dir: Path | None = None,
     extra_instructions: str | None = None,
     dry_run: bool = False,
+    provider: str | None = None,
 ) -> dict[str, Any]:
     """Run the full VLM three-view review pipeline.
 
@@ -159,9 +203,14 @@ def run_vlm_review(
             "suggestions": [],
         }
     else:
-        print("[VLM Review] Calling VLM for visual judgement...")
+        print(f"[VLM Review] Calling VLM ({provider or 'kimi'}) for visual judgement...")
         try:
-            verdict = call_vlm(messages, temperature=0.2, max_tokens=4096)
+            verdict = call_vlm(
+                messages,
+                temperature=0.2,
+                max_tokens=4096,
+                provider=provider,
+            )
         except Exception as exc:
             return {"ok": False, "errors": [f"VLM call failed: {exc}"], "vlm_verdict": None}
 

@@ -3,7 +3,7 @@
 Supports multimodal messages (text + base64-encoded PNG images).
 Uses curl subprocess to avoid extra pip dependencies.
 
-Defaults to Doubao (Volces/ark) for vision; falls back to Kimi For Coding.
+Defaults to Kimi; falls back to Doubao on failure if credentials are available.
 Provider and credentials can be overridden via env vars.
 """
 from __future__ import annotations
@@ -30,12 +30,12 @@ def _load_dotenv(path: Path) -> dict[str, str]:
 
 _FA_DOTENV = _load_dotenv(Path(__file__).resolve().parent.parent.parent / "freecad-assembler" / ".env")
 
-# ---- Doubao (primary for vision) ----
+# ---- Doubao (fallback) ----
 DOUBAO_API_KEY = os.environ.get("DOUBAO_API_KEY", os.environ.get("LLM_API_KEY", _FA_DOTENV.get("LLM_API_KEY", "")))
 DOUBAO_BASE_URL = os.environ.get("DOUBAO_BASE_URL", _FA_DOTENV.get("LLM_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3"))
 DOUBAO_MODEL = os.environ.get("DOUBAO_MODEL", os.environ.get("LLM_MODEL", _FA_DOTENV.get("LLM_MODEL", "doubao-seed-2-0-pro-260215")))
 
-# ---- Kimi For Coding (fallback) ----
+# ---- Kimi (default) ----
 KIMI_API_KEY = os.environ.get(
     "KIMI_API_KEY",
     "REMOVED_KIMI_API_KEY",
@@ -98,29 +98,23 @@ def encode_image(image_path: Path) -> str:
         return base64.b64encode(f.read()).decode("utf-8")
 
 
-def call_vlm(
+def _call_provider(
     messages: list[dict[str, Any]],
     *,
-    temperature: float = 0.3,
-    max_tokens: int = 4096,
-    provider: str | None = None,
+    temperature: float,
+    max_tokens: int,
+    provider: str,
+    response_format: dict[str, str] | None = None,
+    timeout: int = 180,
 ) -> dict[str, Any]:
-    """Call VLM chat completions API via curl.
-
-    `messages` follows OpenAI-compatible format and may contain multimodal content.
-    Returns parsed JSON dict extracted from the model response.
-    """
-    # Auto-select provider
-    if provider is None:
-        provider = "doubao" if DOUBAO_API_KEY else "kimi"
-
+    """Call a single provider and return parsed JSON."""
     if provider == "doubao":
         url = f"{DOUBAO_BASE_URL}/chat/completions"
         headers = [
             "Content-Type: application/json",
             f"Authorization: Bearer {DOUBAO_API_KEY}",
         ]
-        payload = {
+        payload: dict[str, Any] = {
             "model": DOUBAO_MODEL,
             "messages": messages,
             "temperature": temperature,
@@ -141,17 +135,20 @@ def call_vlm(
             "max_tokens": max_tokens,
         }
 
+    if response_format is not None:
+        payload["response_format"] = response_format
+
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False)
         payload_path = f.name
 
-    cmd = ["curl", "-s", "-w", r"\nHTTP_CODE:%{http_code}\n", "--max-time", "180"]
+    cmd = ["curl", "-s", "-S", "-w", r"\nHTTP_CODE:%{http_code}\n", "--max-time", str(timeout)]
     for h in headers:
         cmd.extend(["-H", h])
     cmd.extend(["-d", f"@{payload_path}", url])
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=200)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 20)
     finally:
         os.unlink(payload_path)
 
@@ -183,3 +180,42 @@ def call_vlm(
             return parsed
 
     raise RuntimeError("Could not extract valid JSON from VLM API response.")
+
+
+def call_vlm(
+    messages: list[dict[str, Any]],
+    *,
+    temperature: float = 0.3,
+    max_tokens: int = 4096,
+    provider: str | None = None,
+    response_format: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Call VLM chat completions API via curl.
+
+    Defaults to Kimi. If Kimi fails and Doubao credentials are available,
+    automatically retries with Doubao.
+    """
+    if provider is None:
+        provider = "kimi"
+
+    last_error: Exception | None = None
+    providers_to_try = [provider]
+    if provider == "kimi" and DOUBAO_API_KEY:
+        providers_to_try.append("doubao")
+
+    for prov in providers_to_try:
+        try:
+            return _call_provider(
+                messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                provider=prov,
+                response_format=response_format,
+            )
+        except Exception as exc:
+            last_error = exc
+            if len(providers_to_try) > 1 and prov != providers_to_try[-1]:
+                print(f"[VLM] {prov} failed ({exc}), retrying with fallback...")
+            continue
+
+    raise RuntimeError(f"All VLM providers failed. Last error: {last_error}")
