@@ -5,7 +5,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from cad_asm.commands import init, step, verify, export, lib, check
+from cad_asm.commands import init, step, verify, export, lib, check, vlm_check
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -53,6 +53,13 @@ def main(argv: list[str] | None = None) -> int:
     p_check.add_argument("--no-edges", action="store_true", help="Disable feature edges")
     p_check.add_argument("--no-axes", action="store_true", help="Disable orientation axes")
 
+    # vlm-check
+    p_vlm = sub.add_parser("vlm-check", help="Run VLM-based visual review on three-view snapshots")
+    p_vlm.add_argument("--workspace", "-w", type=Path, default=Path("."), help="Workspace directory")
+    p_vlm.add_argument("--out-dir", type=Path, default=None, dest="vlm_out_dir", help="Output directory (default: workspace/checks)")
+    p_vlm.add_argument("--instructions", type=str, default=None, help="Extra prompt instructions for the VLM")
+    p_vlm.add_argument("--dry-run", action="store_true", help="Skip VLM call and return mock response")
+
     args = parser.parse_args(argv)
 
     if args.command == "init":
@@ -85,6 +92,14 @@ def main(argv: list[str] | None = None) -> int:
             background_color=background_color,
             edges=not args.no_edges,
             axes=not args.no_axes,
+        )
+
+    if args.command == "vlm-check":
+        return vlm_check.run(
+            args.workspace,
+            out_dir=args.vlm_out_dir,
+            extra_instructions=args.instructions,
+            dry_run=args.dry_run,
         )
 
     parser.print_help()
