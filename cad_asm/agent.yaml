@@ -1,0 +1,14 @@
+version: 1
+agent:
+  extend: default
+  name: cad-asm
+  system_prompt_path: ./system.md
+  exclude_tools:
+    - "kimi_cli.tools.background:TaskList"
+    - "kimi_cli.tools.background:TaskOutput"
+    - "kimi_cli.tools.background:TaskStop"
+    - "kimi_cli.tools.agent:Agent"
+  subagents:
+    plan:
+      path: ./plan-agent.yaml
+      description: "CAD assembly architecture planner: analyzes requirements and produces structured part/constraint plans before execution"

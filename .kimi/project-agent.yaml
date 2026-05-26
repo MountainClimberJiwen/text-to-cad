@@ -1,0 +1,9 @@
+version: 1
+agent:
+  extend: default
+  name: text-to-cad
+  system_prompt_path: ./system.md
+  subagents:
+    cad-asm:
+      path: ../cad_asm/agent.yaml
+      description: "CAD assembly specialist: builds STEP assemblies from part definitions and constraints"
