@@ -16,10 +16,7 @@ import subprocess
 import tempfile
 
 # Fallback to env var; default comes from ~/.kimi_openclaw/credentials/
-KIMI_API_KEY = os.environ.get(
-    "KIMI_API_KEY",
-    "REMOVED_KIMI_API_KEY",
-)
+KIMI_API_KEY = os.environ.get("KIMI_API_KEY", "")
 KIMI_BASE_URL = "https://api.kimi.com/coding"
 KIMI_MODEL = "k2p5"          # k2p5 maps to kimi-for-coding on this endpoint
 KIMI_CLAW_ID = "19e12536-4ec2-8c2f-8000-000011f79d72"

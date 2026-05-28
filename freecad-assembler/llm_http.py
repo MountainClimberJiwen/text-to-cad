@@ -34,10 +34,7 @@ DOUBAO_BASE_URL = _ENV.get("LLM_BASE_URL", "https://ark.cn-beijing.volces.com/ap
 DOUBAO_MODEL = _ENV.get("LLM_MODEL", "doubao-seed-2-0-pro-260215")
 
 # ---- Kimi For Coding (fallback) ----
-KIMI_API_KEY = os.environ.get(
-    "KIMI_API_KEY",
-    "REMOVED_KIMI_API_KEY",
-)
+KIMI_API_KEY = os.environ.get("KIMI_API_KEY", "")
 KIMI_BASE_URL = "https://api.kimi.com/coding"
 KIMI_MODEL = "k2p5"
 KIMI_CLAW_ID = "19e12536-4ec2-8c2f-8000-000011f79d72"

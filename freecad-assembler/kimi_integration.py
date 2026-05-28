@@ -49,7 +49,7 @@ def _ensure_imports():
 #  配置
 # ═══════════════════════════════════════════════════════
 
-DOUBAO_API_KEY = os.environ.get("DOUBAO_API_KEY", "REMOVED_DOUBAO_API_KEY")
+DOUBAO_API_KEY = os.environ.get("DOUBAO_API_KEY", "")
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "/tmp/kimi_assemblies"))
 
 

@@ -16,6 +16,7 @@ DSPy Optimizer — 生产级集成
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -33,7 +34,7 @@ import dspy
 
 lm = dspy.LM(
     "openai/doubao-seed-2-0-pro-260215",
-    api_key="REMOVED_DOUBAO_API_KEY",
+    api_key=os.environ.get("DOUBAO_API_KEY", ""),
     api_base="https://ark.cn-beijing.volces.com/api/v3",
     max_tokens=4096,
     temperature=0.1,  # 低温度确保确定性输出

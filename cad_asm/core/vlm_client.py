@@ -36,10 +36,7 @@ DOUBAO_BASE_URL = os.environ.get("DOUBAO_BASE_URL", _FA_DOTENV.get("LLM_BASE_URL
 DOUBAO_MODEL = os.environ.get("DOUBAO_MODEL", os.environ.get("LLM_MODEL", _FA_DOTENV.get("LLM_MODEL", "doubao-seed-2-0-pro-260215")))
 
 # ---- Kimi (default) ----
-KIMI_API_KEY = os.environ.get(
-    "KIMI_API_KEY",
-    "REMOVED_KIMI_API_KEY",
-)
+KIMI_API_KEY = os.environ.get("KIMI_API_KEY", "")
 KIMI_BASE_URL = os.environ.get("KIMI_BASE_URL", "https://api.kimi.com/coding")
 KIMI_MODEL = os.environ.get("KIMI_MODEL", "k2p5")
 KIMI_CLAW_ID = os.environ.get("KIMI_CLAW_ID", "19e12536-4ec2-8c2f-8000-000011f79d72")
