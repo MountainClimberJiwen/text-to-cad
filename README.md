@@ -87,7 +87,7 @@ Then open [http://localhost:4178](http://localhost:4178).
 
 ## Author & Contact
 
-**MountainClimberJiwen** — 纪文
+**MountainClimberJiwen**
 
 - 📧 Email: ljwscu@gmail.com
 - 💬 WeChat: 扫码添加好友
