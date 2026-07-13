@@ -1,12 +1,12 @@
 <div align="center">
 
-<img src="assets/text-to-cad-demo.gif" alt="Demo of the text-to-cad-assembly harness generating and previewing CAD geometry" width="100%">
+<img src="assets/text-to-cad-demo.gif" alt="Text-to-CAD assembly demo: a vision-based automation station generated from a prompt and rendered as a rotating 3D assembly" width="100%">
 
 <br>
 
 # ⚙ Open Source Text to CAD Assembly Harness ⚙
 
-An open source harness for generating 3D models with your favorite coding agent
+Turn a text or image prompt into a source-controlled CAD assembly — then export, inspect, and iterate with your favorite coding agent.
 
 [![GitHub stars](https://img.shields.io/github/stars/MountainClimberJiwen/text-to-cad-assembly?style=for-the-badge&logo=github&label=Stars)](https://github.com/MountainClimberJiwen/text-to-cad-assembly/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/MountainClimberJiwen/text-to-cad-assembly?style=for-the-badge&logo=github&label=Forks)](https://github.com/MountainClimberJiwen/text-to-cad-assembly/network/members)
@@ -24,12 +24,18 @@ An open source harness for generating 3D models with your favorite coding agent
 
 </div>
 
+## What is Text to CAD Assembly?
+
+This harness is built around one idea: **go from a description (text or image) to a real, manufacturable CAD assembly, source-controlled and reproducible.**
+
+Instead of clicking through a GUI, you collaborate with a coding agent. The agent writes Python generators under `models/`, the harness turns them into STEP/STL/URDF artifacts, and the local CAD Explorer lets you review the result. Every edit is tracked, every reference is addressable with `@cad[...]`, and the whole loop runs on your machine.
+
 ## ✨ Features
 
-- **Generate** - Create source-controlled CAD models with coding agents like Codex and Claude Code.
+- **Generate assemblies from prompts** - Describe a part, fixture, mechanism, or robot in plain language (or from an image) and let a coding agent produce the CAD source.
 - **Export** - Produce STEP, STL, DXF, GLB, topology data, and URDF robot descriptions.
 - **Browse** - Inspect generated geometry in a local CAD Explorer viewer.
-- **Reference** - Copy stable `@cad[...]` references so agents can make precise follow-up edits.
+- **Reference** - Copy stable `@cad[...]` references so agents can make precise, geometry-aware follow-up edits.
 - **Review** - Render quick snapshots for fast checks during an iteration loop.
 - **Reproduce** - Edit source files first, then regenerate explicit targets.
 - **Local** - Run the harness and viewer locally with no backend to host.
