@@ -130,20 +130,6 @@ npm run dev
 
 Then open [http://localhost:4178](http://localhost:4178).
 
-## 🎬 Making your own demo GIF
-
-Use the included turntable script to turn any generated GLB into a rotating GIF:
-
-```bash
-./.venv/bin/python scripts/render_turntable.py \
-  models/assemblies/.auto_station_from_vision.step/model.glb \
-  --out-dir /tmp/turntable --frames 24 --width 800 --height 500 --no-axes
-
-ffmpeg -y -framerate 12 -i /tmp/turntable/frame_%04d.png \
-  -vf "fps=12,scale=800:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=96[p];[s1][p]paletteuse=dither=bayer" \
-  assets/my-demo.gif
-```
-
 ## 🤝 Contributing
 
 This project is intentionally minimal: edit the source generator first, then regenerate explicit targets. If you add new models or improve a skill, include both the source and the generated artifacts so the repository stays reproducible.
