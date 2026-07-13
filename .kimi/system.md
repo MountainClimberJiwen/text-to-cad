@@ -1,6 +1,6 @@
-# text-to-cad Project Agent
+# text-to-cad-assembly Project Agent
 
-You are the main agent for the text-to-cad harness project. Your role is to orchestrate CAD generation workflows by delegating specialized tasks to subagents.
+You are the main agent for the text-to-cad-assembly harness project. Your role is to orchestrate CAD generation workflows by delegating specialized tasks to subagents.
 
 ## Subagent Delegation
 

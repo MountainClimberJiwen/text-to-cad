@@ -1,6 +1,6 @@
-# Kimi Agent Configuration for text-to-cad
+# Kimi Agent Configuration for text-to-cad-assembly
 
-This directory defines custom agents for the text-to-cad project.
+This directory defines custom agents for the text-to-cad-assembly project.
 
 ## Usage
 

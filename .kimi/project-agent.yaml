@@ -1,7 +1,7 @@
 version: 1
 agent:
   extend: default
-  name: text-to-cad
+  name: text-to-cad-assembly
   system_prompt_path: ./system.md
   subagents:
     cad-asm:

@@ -1,15 +1,15 @@
 <div align="center">
 
-<img src="assets/text-to-cad-demo.gif" alt="Demo of the text-to-cad harness generating and previewing CAD geometry" width="100%">
+<img src="assets/text-to-cad-demo.gif" alt="Demo of the text-to-cad-assembly harness generating and previewing CAD geometry" width="100%">
 
 <br>
 
-# ⚙ Open Source Text to CAD Harness ⚙
+# ⚙ Open Source Text to CAD Assembly Harness ⚙
 
 An open source harness for generating 3D models with your favorite coding agent
 
-[![GitHub stars](https://img.shields.io/github/stars/earthtojake/text-to-cad?style=for-the-badge&logo=github&label=Stars)](https://github.com/earthtojake/text-to-cad/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/earthtojake/text-to-cad?style=for-the-badge&logo=github&label=Forks)](https://github.com/earthtojake/text-to-cad/network/members)
+[![GitHub stars](https://img.shields.io/github/stars/MountainClimberJiwen/text-to-cad-assembly?style=for-the-badge&logo=github&label=Stars)](https://github.com/MountainClimberJiwen/text-to-cad-assembly/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/MountainClimberJiwen/text-to-cad-assembly?style=for-the-badge&logo=github&label=Forks)](https://github.com/MountainClimberJiwen/text-to-cad-assembly/network/members)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 [![Follow @soft_servo](https://img.shields.io/badge/Follow-%40soft__servo-000000?style=for-the-badge&logo=x)](https://x.com/soft_servo)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](requirements-cad.txt)
@@ -55,8 +55,8 @@ This harness vendors file-targeted skills for CAD and robot-description work. Us
 Clone the repo:
 
 ```bash
-git clone https://github.com/earthtojake/text-to-cad.git
-cd text-to-cad
+git clone https://github.com/MountainClimberJiwen/text-to-cad-assembly.git
+cd text-to-cad-assembly
 ```
 
 Install Python CAD dependencies:

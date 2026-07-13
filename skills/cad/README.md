@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/text-to-cad-demo.gif" alt="Demo of the text-to-cad harness generating and previewing CAD geometry" width="100%">
+<img src="../../assets/text-to-cad-demo.gif" alt="Demo of the text-to-cad-assembly harness generating and previewing CAD geometry" width="100%">
 
 <br>
 
@@ -38,6 +38,6 @@ Install the skill runtime dependencies from [requirements.txt](requirements.txt)
 
 ## Project Harness
 
-The [text-to-cad harness](https://github.com/earthtojake/text-to-cad) is a convenient way to manage projects that use this skill. It provides a `models/` layout, a local viewer, prompt-reference UX, and root setup commands that install the bundled skill dependencies.
+The [text-to-cad-assembly harness](https://github.com/MountainClimberJiwen/text-to-cad-assembly) is a convenient way to manage projects that use this skill. It provides a `models/` layout, a local viewer, prompt-reference UX, and root setup commands that install the bundled skill dependencies.
 
 For agent-facing workflow rules, use [SKILL.md](SKILL.md).

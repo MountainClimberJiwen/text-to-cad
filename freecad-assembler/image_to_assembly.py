@@ -431,7 +431,7 @@ def run_pipeline(image_path: str, output_dir: str = "checkpoint") -> AssemblyInt
     try:
         from framework.assembly_builder import build_assembly_script
 
-        repo_root = Path(REPO_ROOT).parent  # go up to text-to-cad root
+        repo_root = Path(REPO_ROOT).parent  # go up to text-to-cad-assembly root
         asm_script_path = repo_root / "models" / "assemblies" / "auto_station_from_vision.py"
         asm_script_path.parent.mkdir(parents=True, exist_ok=True)
 
