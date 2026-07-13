@@ -6,7 +6,7 @@
 
 # ⚙ Open Source Text to CAD Assembly Harness ⚙
 
-Turn a text or image prompt into a source-controlled CAD assembly — then export, inspect, and iterate with your favorite coding agent.
+**Turn a text or image prompt into a source-controlled CAD assembly — then export, inspect, and iterate with your favorite coding agent.**
 
 [![GitHub stars](https://img.shields.io/github/stars/MountainClimberJiwen/text-to-cad-assembly?style=for-the-badge&logo=github&label=Stars)](https://github.com/MountainClimberJiwen/text-to-cad-assembly/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/MountainClimberJiwen/text-to-cad-assembly?style=for-the-badge&logo=github&label=Forks)](https://github.com/MountainClimberJiwen/text-to-cad-assembly/network/members)
@@ -24,11 +24,47 @@ Turn a text or image prompt into a source-controlled CAD assembly — then expor
 
 </div>
 
-## What is Text to CAD Assembly?
+---
 
-This harness is built around one idea: **go from a description (text or image) to a real, manufacturable CAD assembly, source-controlled and reproducible.**
+## What is this?
 
-Instead of clicking through a GUI, you collaborate with a coding agent. The agent writes Python generators under `models/`, the harness turns them into STEP/STL/URDF artifacts, and the local CAD Explorer lets you review the result. Every edit is tracked, every reference is addressable with `@cad[...]`, and the whole loop runs on your machine.
+This repository is a harness for **text-to-CAD-assembly** generation. Instead of modeling every part by hand in a GUI, you describe what you want in plain language — or even hand the agent a rough sketch or photo — and it writes the CAD source for you.
+
+The result is not just a static mesh. It is:
+
+- A **Python generator** under `models/` that produces the geometry parametrically.
+- Exported **STEP/STL/GLB** files that you can open in any CAD or slicer.
+- Optional **URDF** robot descriptions with joints and limits.
+- A local **CAD Explorer** viewer to inspect, screenshot, and share geometry.
+- Stable **`@cad[...]` references** so the agent can keep editing specific faces, edges, or parts in follow-up turns.
+
+Everything runs locally. There is no cloud backend, no subscription, and no proprietary format lock-in.
+
+## What can you build?
+
+The `models/` directory already contains examples generated through this workflow:
+
+| Example | Path | Description |
+|---|---|---|
+| Vision-based automation station | `models/assemblies/auto_station_from_vision.step` | A full assembly with a base plate, dual rotary bowls, and a vertical gantry — generated from an image prompt. |
+| Pick-and-place arm | `models/assemblies/pick_place_arm_v3.step` | A multi-joint robotic arm assembly with URDF support. |
+| Automation control unit | `models/assemblies/automation_control_unit.step` | A compact control-box assembly. |
+| Simple bracket | `models/bracket.step` | A basic L-bracket for quick part-level demos. |
+
+If you can describe it, the harness can turn it into source-controlled geometry.
+
+## A typical Text-to-CAD loop
+
+1. **Describe** the assembly in a prompt:
+   > *“Build a vibratory feeder station with two bowl feeders on a shared aluminum base and a vertical press gantry.”*
+2. **Edit**: the agent creates or updates Python generators under `models/`.
+3. **Regenerate** explicit artifacts:
+   ```bash
+   ./.venv/bin/python skills/cad/scripts/gen_step_assembly models/assemblies/my_assembly.py
+   ```
+4. **Inspect** the result in the CAD Explorer at `http://localhost:4178`.
+5. **Reference** a face or edge with `@cad[models/assemblies/my_assembly#f12]` and ask the agent to adjust it.
+6. **Commit** the source and generated files together.
 
 ## ✨ Features
 
@@ -47,14 +83,20 @@ This harness vendors file-targeted skills for CAD and robot-description work. Us
 - **CAD Skill** - STEP, STL, DXF, GLB/topology, snapshots, and `@cad[...]` geometry references. [Bundled docs](skills/cad/README.md) · [Standalone repo](https://github.com/earthtojake/cad-skill)
 - **URDF Skill** - Generated URDF XML, robot links, joints, limits, validation, and mesh references. [Bundled docs](skills/urdf/README.md) · [Standalone repo](https://github.com/earthtojake/urdf-skill)
 
-## 🔁 Workflow
+## 📁 Repository layout
 
-1. **Describe** - Tell your agent about the part, assembly, fixture, robot, or mechanism you want.
-2. **Edit** - Let your coding agent update CAD source files under `models/`.
-3. **Regenerate** - Create explicit STEP, STL, DXF, GLB, or URDF targets.
-4. **Inspect** - Open the CAD Explorer viewer to review the generated model.
-5. **Reference** - Copy `@cad[...]` handles when you want geometry-aware edits.
-6. **Commit** - Save the source and generated artifacts together once the model is ready.
+```
+.
+├── models/                 # Generated CAD assemblies, parts, and robots
+│   ├── assemblies/         # Assembly generators and exported STEP files
+│   └── *.step / *.stl      # Exported geometry
+├── viewer/                 # Local CAD Explorer (React + Three.js + Vite)
+├── skills/cad/             # CAD generation, snapshots, and @cad[...] tooling
+├── skills/urdf/            # URDF generation and validation tooling
+├── freecad-assembler/      # Alternative FreeCAD-based assembly pipeline
+├── cad_asm/                # Higher-level agent orchestration experiments
+└── scripts/                # Utility scripts, including render_turntable.py
+```
 
 ## 🚀 Quick Start
 
@@ -87,3 +129,25 @@ npm run dev
 ```
 
 Then open [http://localhost:4178](http://localhost:4178).
+
+## 🎬 Making your own demo GIF
+
+Use the included turntable script to turn any generated GLB into a rotating GIF:
+
+```bash
+./.venv/bin/python scripts/render_turntable.py \
+  models/assemblies/.auto_station_from_vision.step/model.glb \
+  --out-dir /tmp/turntable --frames 24 --width 800 --height 500 --no-axes
+
+ffmpeg -y -framerate 12 -i /tmp/turntable/frame_%04d.png \
+  -vf "fps=12,scale=800:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=96[p];[s1][p]paletteuse=dither=bayer" \
+  assets/my-demo.gif
+```
+
+## 🤝 Contributing
+
+This project is intentionally minimal: edit the source generator first, then regenerate explicit targets. If you add new models or improve a skill, include both the source and the generated artifacts so the repository stays reproducible.
+
+## 📄 License
+
+MIT — see [LICENSE](LICENSE).
